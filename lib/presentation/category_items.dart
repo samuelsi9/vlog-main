@@ -2,25 +2,245 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Models/model.dart';
 import 'package:vlog/Models/category_model.dart';
+import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Models/subcategory_models.dart';
+import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart'; // Pour aller aux détails
 
-class CategoryItems extends StatelessWidget {
+class CategoryItems extends StatefulWidget {
   final String category;
-  final List<itemModel> categoItems;
+  final List<itemModel>? categoItems; // Made optional for API fetching
+  final int? categoryId; // Category ID to fetch from API
 
   const CategoryItems({
     super.key,
     required this.category,
-    required this.categoItems,
+    this.categoItems,
+    this.categoryId,
   });
 
   @override
+  State<CategoryItems> createState() => _CategoryItemsState();
+}
+
+class _CategoryItemsState extends State<CategoryItems> {
+  List<ProductModel> _products = [];
+  List<itemModel> _items = [];
+  bool _isLoading = true;
+  bool _hasError = false;
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    // If categoryId is provided, fetch from API
+    // Otherwise, use the provided categoItems
+    if (widget.categoryId != null) {
+      _fetchProductsByCategory();
+    } else if (widget.categoItems != null) {
+      _items = widget.categoItems!;
+      _isLoading = false;
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _fetchProductsByCategory() async {
+    if (widget.categoryId == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
+    try {
+      final response = await _authService.getProductsByCategory(
+        categoryId: widget.categoryId!,
+        page: 1,
+      );
+
+      if (mounted) {
+        setState(() {
+          _products = response.data;
+          // Convert ProductModel to itemModel for compatibility
+          _items = _products.map((product) => _productToItemModel(product)).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching products by category: $e');
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+          // Fallback to provided items if available
+          if (widget.categoItems != null) {
+            _items = widget.categoItems!;
+          }
+        });
+      }
+    }
+  }
+
+  // Helper method to convert ProductModel to itemModel
+  itemModel _productToItemModel(ProductModel product) {
+    return itemModel(
+      name: product.name,
+      description: product.description,
+      price: product.price.toInt(),
+      categoryId: product.categoryId,
+      image: product.image,
+      rating: product.rating,
+      review: '',
+      fcolor: [Colors.red, Colors.blue, Colors.green],
+      size: ['S', 'M', 'L', 'XL'],
+    );
+  }
+
+  // Helper method to build image widget (handles both network and asset images)
+  Widget _buildImage(String imageUrl, {double? height, double? width}) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        height: height,
+        width: width,
+        color: Colors.grey[200],
+        child: Icon(
+          Icons.image_not_supported,
+          color: Colors.grey[400],
+          size: 30,
+        ),
+      );
+    }
+
+    final trimmedUrl = imageUrl.trim();
+    final isNetworkImage = trimmedUrl.startsWith('http://') || 
+                           trimmedUrl.startsWith('https://') ||
+                           trimmedUrl.startsWith('www.') ||
+                           trimmedUrl.contains('://');
+    
+    if (isNetworkImage) {
+      return Image.network(
+        trimmedUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.grey[400],
+              size: 30,
+            ),
+          );
+        },
+      );
+    } else {
+      return Image.asset(
+        trimmedUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.grey[400],
+              size: 30,
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Show loading state
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.category),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Show error state
+    if (_hasError && _items.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.category),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              Text(
+                'Error loading products',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Failed to fetch products for this category',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _fetchProductsByCategory,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // 🔹 Récupérer les sous-catégories liées à cette catégorie
+    final categoryId = widget.categoryId ?? getCategoryIdFromName(widget.category);
     final subList = subCategories
-        .where((sub) => sub.categoryId == getCategoryIdFromName(category))
+        .where((sub) => sub.categoryId == categoryId)
         .toList();
 
     return Scaffold(
@@ -47,7 +267,7 @@ class CategoryItems extends StatelessWidget {
                       child: TextField(
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.all(5),
-                          hintText: "$category's Fashion",
+                          hintText: "${widget.category}'s Fashion",
                           hintStyle: const TextStyle(color: Colors.black38),
                           border: const OutlineInputBorder(
                             borderSide: BorderSide.none,
@@ -200,12 +420,12 @@ class CategoryItems extends StatelessWidget {
             const SizedBox(height: 20),
 
             // 🔹 PRODUCTS SECTION
-            if (categoItems.isNotEmpty)
+            if (_items.isNotEmpty)
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: GridView.builder(
-                    itemCount: categoItems.length,
+                    itemCount: _items.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -214,13 +434,20 @@ class CategoryItems extends StatelessWidget {
                           childAspectRatio: 0.75,
                         ),
                     itemBuilder: (context, index) {
-                      final item = categoItems[index];
+                      final item = _items[index];
+                      // Get product ID if available from API products
+                      final productId = widget.categoryId != null && index < _products.length
+                          ? _products[index].id
+                          : null;
+                      
                       return GestureDetector(
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => Detail(ecom: item),
+                              builder: (context) => productId != null
+                                  ? Detail(productId: productId)
+                                  : Detail(ecom: item),
                             ),
                           );
                         },
@@ -246,9 +473,8 @@ class CategoryItems extends StatelessWidget {
                                       borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(12),
                                       ),
-                                      child: Image.asset(
+                                      child: _buildImage(
                                         item.image,
-                                        fit: BoxFit.cover,
                                         width: double.infinity,
                                       ),
                                     ),

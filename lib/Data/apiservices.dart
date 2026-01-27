@@ -2,6 +2,8 @@
 import 'package:dio/dio.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/product_model.dart';
+import 'package:vlog/Models/product_detail_model.dart';
+import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/cart_model.dart';
 
 class AuthService {
@@ -285,6 +287,55 @@ class AuthService {
       rethrow;
     } catch (e) {
       print('Unexpected error during get product by ID: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetch product details by ID for detail screen
+  /// [productId] - Product ID
+  /// Returns ProductDetailModel with default rating
+  Future<ProductDetailModel> getProductDetail(int productId) async {
+    try {
+      final response = await _dio.get('/api/products/$productId');
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        return ProductDetailModel.fromMap(data);
+      } else {
+        throw Exception('Failed to fetch product details: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('Get product detail failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during get product detail: $e');
+      rethrow;
+    }
+  }
+
+  // ================= CATEGORY API METHODS =================
+
+  /// Fetch categories with pagination
+  /// [page] - Page number (default: 1)
+  /// Returns CategoriesResponse with data, links, and meta
+  Future<CategoriesResponse> getCategories({int page = 1}) async {
+    try {
+      final response = await _dio.get(
+        '/api/categories',
+        queryParameters: {'page': page},
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        return CategoriesResponse.fromMap(data);
+      } else {
+        throw Exception('Failed to fetch categories: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('Get categories failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during get categories: $e');
       rethrow;
     }
   }

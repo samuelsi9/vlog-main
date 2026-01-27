@@ -1,13 +1,15 @@
 import 'package:vlog/Models/model.dart';
 import 'package:vlog/Models/cart_model.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:flutter/material.dart';
 
 class CartItem {
   final itemModel item;
   int quantity;
+  int? cartItemId; // ID from API for deletion
 
-  CartItem({required this.item, this.quantity = 1});
+  CartItem({required this.item, this.quantity = 1, this.cartItemId});
 
   double get totalPrice => (item.price * quantity).toDouble();
 }
@@ -33,8 +35,22 @@ class CartService extends ChangeNotifier {
   double get totalPrice =>
       _cartItems.fold(0.0, (sum, item) => sum + item.totalPrice.toDouble());
 
+  /// Check if user is authenticated
+  Future<bool> isAuthenticated() async {
+    return await StorageService.isLoggedIn();
+  }
+
   /// Fetch cart from API
   Future<void> fetchCart() async {
+    // Check authentication first
+    final isAuth = await isAuthenticated();
+    if (!isAuth) {
+      _error = 'You must be authenticated to view your cart';
+      _isLoading = false;
+      notifyListeners();
+      throw Exception('Authentication required');
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -62,6 +78,7 @@ class CartService extends ChangeNotifier {
         _cartItems.add(CartItem(
           item: item,
           quantity: apiItem.quantity,
+          cartItemId: apiItem.id,
         ));
       }
       
@@ -78,6 +95,12 @@ class CartService extends ChangeNotifier {
   /// Add product to cart via API using product ID
   /// This is the preferred method when you have the product ID
   Future<void> addToCartByProductId(int productId) async {
+    // Check authentication first
+    final isAuth = await isAuthenticated();
+    if (!isAuth) {
+      throw Exception('You must be authenticated to add items to cart');
+    }
+
     try {
       _isLoading = true;
       notifyListeners();
@@ -103,6 +126,12 @@ class CartService extends ChangeNotifier {
   /// Note: This requires productId to be stored in itemModel somehow
   /// For ProductModel, use addToCartByProductId instead
   Future<void> addToCart(itemModel item) async {
+    // Check authentication first
+    final isAuth = await isAuthenticated();
+    if (!isAuth) {
+      throw Exception('You must be authenticated to add items to cart');
+    }
+
     try {
       // Try to get product ID from item
       // If itemModel doesn't have productId, we'll need to find it another way
@@ -128,15 +157,27 @@ class CartService extends ChangeNotifier {
   }
 
   Future<void> removeFromCart(CartItem cartItem) async {
-    try {
-      // Find the API cart item ID
-      final apiItem = _apiCart?.items.firstWhere(
-        (item) => item.name == cartItem.item.name,
-        orElse: () => throw Exception('Item not found in API cart'),
-      );
+    // Check authentication first
+    final isAuth = await isAuthenticated();
+    if (!isAuth) {
+      throw Exception('You must be authenticated to remove items from cart');
+    }
 
-      if (apiItem != null) {
-        await _removeFromCartAPI(apiItem.id);
+    try {
+      // Use stored cart item ID if available, otherwise try to find it
+      int? cartItemId = cartItem.cartItemId;
+      
+      if (cartItemId == null) {
+        // Fallback: Find the API cart item ID by name
+        final apiItem = _apiCart?.items.firstWhere(
+          (item) => item.name == cartItem.item.name,
+          orElse: () => throw Exception('Item not found in API cart'),
+        );
+        cartItemId = apiItem?.id;
+      }
+
+      if (cartItemId != null) {
+        await _removeFromCartAPI(cartItemId);
       } else {
         // Fallback to local removal
         _cartItems.remove(cartItem);
@@ -172,20 +213,32 @@ class CartService extends ChangeNotifier {
   }
 
   Future<void> updateQuantity(CartItem cartItem, int quantity) async {
+    // Check authentication first
+    final isAuth = await isAuthenticated();
+    if (!isAuth) {
+      throw Exception('You must be authenticated to update cart items');
+    }
+
     if (quantity <= 0) {
       await removeFromCart(cartItem);
       return;
     }
 
     try {
-      // Find the API cart item ID
-      final apiItem = _apiCart?.items.firstWhere(
-        (item) => item.name == cartItem.item.name,
-        orElse: () => throw Exception('Item not found in API cart'),
-      );
+      // Use stored cart item ID if available, otherwise try to find it
+      int? cartItemId = cartItem.cartItemId;
+      
+      if (cartItemId == null) {
+        // Fallback: Find the API cart item ID by name
+        final apiItem = _apiCart?.items.firstWhere(
+          (item) => item.name == cartItem.item.name,
+          orElse: () => throw Exception('Item not found in API cart'),
+        );
+        cartItemId = apiItem?.id;
+      }
 
-      if (apiItem != null) {
-        await _updateQuantityAPI(apiItem.id, quantity);
+      if (cartItemId != null) {
+        await _updateQuantityAPI(cartItemId, quantity);
       } else {
         // Fallback to local update
         cartItem.quantity = quantity;

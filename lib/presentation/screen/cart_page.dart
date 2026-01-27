@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/storage_service.dart';
 
 // Color scheme
 const Color primaryColor = Color(0xFFE53E3E);
@@ -38,14 +39,109 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  bool _isCheckingAuth = true;
+  bool _isAuthenticated = false;
+
   @override
   void initState() {
     super.initState();
-    // Fetch cart from API when page loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final cartService = Provider.of<CartService>(context, listen: false);
-      cartService.fetchCart();
+    // Check authentication first
+    _checkAuthentication();
+  }
+
+  Future<void> _checkAuthentication() async {
+    final isAuth = await StorageService.isLoggedIn();
+    setState(() {
+      _isAuthenticated = isAuth;
+      _isCheckingAuth = false;
     });
+
+    if (isAuth) {
+      // Fetch cart from API when page loads
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final cartService = Provider.of<CartService>(context, listen: false);
+        cartService.fetchCart();
+      });
+    }
+  }
+
+  // Helper method to build image widget (handles both network and asset images)
+  Widget _buildImage(String imageUrl, {double? height, double? width}) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        height: height,
+        width: width,
+        color: Colors.grey[200],
+        child: Icon(
+          Icons.image_not_supported,
+          color: Colors.grey[400],
+          size: 30,
+        ),
+      );
+    }
+
+    // Trim whitespace and check for network URLs
+    final trimmedUrl = imageUrl.trim();
+    final isNetworkImage = trimmedUrl.startsWith('http://') || 
+                           trimmedUrl.startsWith('https://') ||
+                           trimmedUrl.startsWith('www.') ||
+                           trimmedUrl.contains('://');
+    
+    if (isNetworkImage) {
+      return Image.network(
+        trimmedUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.grey[400],
+              size: 30,
+            ),
+          );
+        },
+      );
+    } else {
+      return Image.asset(
+        trimmedUrl,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: height,
+            width: width,
+            color: Colors.grey[200],
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.grey[400],
+              size: 30,
+            ),
+          );
+        },
+      );
+    }
   }
 
   // Group cart items by vendor (for now, we'll simulate vendors)
@@ -108,14 +204,76 @@ class _CartPageState extends State<CartPage> {
           ),
         ],
       ),
-      body: Consumer<CartService>(
-        builder: (context, cartService, child) {
-          // Show loading if fetching cart
-          if (cartService.isLoading && cartService.cartItems.isEmpty) {
-            return const Center(
+      body: _isCheckingAuth
+          ? const Center(
               child: CircularProgressIndicator(),
-            );
-          }
+            )
+          : !_isAuthenticated
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lock_outline,
+                          size: 80,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          "Authentication Required",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "You must be authenticated to view your cart. Please login first.",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            "Go Back",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Consumer<CartService>(
+                  builder: (context, cartService, child) {
+                    // Show loading if fetching cart
+                    if (cartService.isLoading && cartService.cartItems.isEmpty) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
 
           // Show error if exists
           if (cartService.error != null && cartService.cartItems.isEmpty) {
@@ -229,23 +387,10 @@ class _CartPageState extends State<CartPage> {
                           // Vendor image (circular)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(50),
-                            child: Image.asset(
+                            child: _buildImage(
                               vendorCart.image,
                               width: 60,
                               height: 60,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey[200],
-                                  child: Icon(
-                                    Icons.store,
-                                    color: Colors.grey[400],
-                                    size: 30,
-                                  ),
-                                );
-                              },
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -425,18 +570,24 @@ class _CartPageState extends State<CartPage> {
               );
             },
           );
-        },
+                  },
+                ),
       ),
     );
   }
 }
 
 // Detailed cart view page
-class _CartDetailPage extends StatelessWidget {
+class _CartDetailPage extends StatefulWidget {
   final VendorCart vendorCart;
 
   const _CartDetailPage({required this.vendorCart});
 
+  @override
+  State<_CartDetailPage> createState() => _CartDetailPageState();
+}
+
+class _CartDetailPageState extends State<_CartDetailPage> {
   // Helper method to build image widget (handles both network and asset images)
   Widget _buildImage(String imageUrl, {double? height, double? width}) {
     if (imageUrl.isEmpty) {
@@ -452,13 +603,16 @@ class _CartDetailPage extends StatelessWidget {
       );
     }
 
-    final isNetworkImage = imageUrl.startsWith('http://') || 
-                           imageUrl.startsWith('https://') ||
-                           imageUrl.startsWith('www.');
+    // Trim whitespace and check for network URLs
+    final trimmedUrl = imageUrl.trim();
+    final isNetworkImage = trimmedUrl.startsWith('http://') || 
+                           trimmedUrl.startsWith('https://') ||
+                           trimmedUrl.startsWith('www.') ||
+                           trimmedUrl.contains('://');
     
     if (isNetworkImage) {
       return Image.network(
-        imageUrl,
+        trimmedUrl,
         height: height,
         width: width,
         fit: BoxFit.cover,
@@ -493,7 +647,7 @@ class _CartDetailPage extends StatelessWidget {
       );
     } else {
       return Image.asset(
-        imageUrl,
+        trimmedUrl,
         height: height,
         width: width,
         fit: BoxFit.cover,
@@ -537,14 +691,60 @@ class _CartDetailPage extends StatelessWidget {
       ),
       body: Consumer<CartService>(
         builder: (context, cartService, child) {
+          // Get current cart items from the service
+          final currentCartItems = cartService.cartItems;
+          
+          // If cart is empty, show empty state
+          if (currentCartItems.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 80,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    "Your cart is empty",
+                    style: TextStyle(
+                      fontSize: 22,
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Add items to your cart to see them here",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Calculate total from current items
+          final currentTotal = currentCartItems.fold(0.0, (sum, item) => sum + item.totalPrice);
+
           return Column(
             children: [
               Expanded(
                 child: ListView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: vendorCart.items.length,
+                  itemCount: currentCartItems.length,
                   itemBuilder: (context, index) {
-                    final cartItem = vendorCart.items[index];
+                    final cartItem = currentCartItems[index];
                     final item = cartItem.item;
                     final itemTotal = item.price * cartItem.quantity;
 
@@ -568,17 +768,64 @@ class _CartDetailPage extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      item.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                        color: uberBlack,
-                                        letterSpacing: -0.3,
-                                        height: 1.3,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
+                                              color: uberBlack,
+                                              letterSpacing: -0.3,
+                                              height: 1.3,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        // Delete button
+                                        Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () async {
+                                              try {
+                                                await cartService.removeFromCart(cartItem);
+                                                // Reload cart after deletion
+                                                await cartService.fetchCart();
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text('Item removed from cart'),
+                                                      backgroundColor: Colors.green,
+                                                      duration: Duration(seconds: 2),
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Failed to remove item: ${e.toString()}'),
+                                                      backgroundColor: Colors.red,
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            },
+                                            borderRadius: BorderRadius.circular(20),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Icon(
+                                                Icons.delete_outline,
+                                                size: 20,
+                                                color: Colors.red[400],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
@@ -613,11 +860,23 @@ class _CartDetailPage extends StatelessWidget {
                                                           cartItem,
                                                           cartItem.quantity - 1,
                                                         );
+                                                        // Reload cart after update
+                                                        await cartService.fetchCart();
                                                       } else {
-                                                        await cartService.removeFromCart(cartItem);
+                                                        // If quantity is 1, show message and delete
                                                         if (context.mounted) {
-                                                          Navigator.pop(context);
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text('You cannot decrease, you have just one'),
+                                                              backgroundColor: Colors.orange,
+                                                              duration: Duration(seconds: 2),
+                                                            ),
+                                                          );
                                                         }
+                                                        // Delete the item
+                                                        await cartService.removeFromCart(cartItem);
+                                                        // Reload cart after deletion
+                                                        await cartService.fetchCart();
                                                       }
                                                     } catch (e) {
                                                       if (context.mounted) {
@@ -671,6 +930,8 @@ class _CartDetailPage extends StatelessWidget {
                                                         cartItem,
                                                         cartItem.quantity + 1,
                                                       );
+                                                      // Reload cart after update
+                                                      await cartService.fetchCart();
                                                     } catch (e) {
                                                       if (context.mounted) {
                                                         ScaffoldMessenger.of(context).showSnackBar(
@@ -720,7 +981,7 @@ class _CartDetailPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (index < vendorCart.items.length - 1)
+                        if (index < currentCartItems.length - 1)
                           Divider(
                             height: 1,
                             thickness: 1,
@@ -761,7 +1022,7 @@ class _CartDetailPage extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              "₺${vendorCart.totalPrice.toStringAsFixed(2)}",
+                              "₺${currentTotal.toStringAsFixed(2)}",
                               style: TextStyle(
                                 fontSize: 15,
                                 color: Colors.grey[800],
@@ -807,7 +1068,7 @@ class _CartDetailPage extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              "₺${(vendorCart.totalPrice + 250).toStringAsFixed(2)}",
+                              "₺${(currentTotal + 250).toStringAsFixed(2)}",
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,

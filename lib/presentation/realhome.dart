@@ -69,14 +69,18 @@ class _RealhomeState extends State<Realhome> {
   final TextEditingController _searchController = TextEditingController();
   List<ProductModel> _products = [];
   List<ProductModel> _filteredProducts = [];
+  List<CategoryModel> _categories = [];
   bool _isLoading = true;
+  bool _isLoadingCategories = true;
   bool _hasError = false;
+  bool _hasCategoryError = false;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_performSearch);
     _fetchProducts();
+    _fetchCategories();
   }
 
   Future<void> _fetchProducts() async {
@@ -105,6 +109,35 @@ class _RealhomeState extends State<Realhome> {
           _filteredProducts = getDefaultProducts();
           _isLoading = false;
           _hasError = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchCategories() async {
+    setState(() {
+      _isLoadingCategories = true;
+      _hasCategoryError = false;
+    });
+
+    try {
+      final authService = AuthService();
+      final response = await authService.getCategories(page: 1);
+      
+      if (mounted) {
+        setState(() {
+          _categories = response.data;
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      // Use default categories as fallback
+      if (mounted) {
+        setState(() {
+          _categories = [];
+          _isLoadingCategories = false;
+          _hasCategoryError = true;
         });
       }
     }
@@ -147,13 +180,29 @@ class _RealhomeState extends State<Realhome> {
 
   // Helper method to build image widget (handles both network and asset images)
   Widget _buildProductImage(String imageUrl, {double? height, double? width}) {
-    final isNetworkImage = imageUrl.startsWith('http://') || 
-                           imageUrl.startsWith('https://') ||
-                           imageUrl.startsWith('www.');
+    if (imageUrl.isEmpty) {
+      return Container(
+        height: height,
+        width: width ?? double.infinity,
+        color: Colors.grey[200],
+        child: Icon(
+          Icons.image_not_supported,
+          color: Colors.grey[400],
+          size: 30,
+        ),
+      );
+    }
+
+    // Trim whitespace and check for network URLs
+    final trimmedUrl = imageUrl.trim();
+    final isNetworkImage = trimmedUrl.startsWith('http://') || 
+                           trimmedUrl.startsWith('https://') ||
+                           trimmedUrl.startsWith('www.') ||
+                           trimmedUrl.contains('://');
     
     if (isNetworkImage) {
       return Image.network(
-        imageUrl,
+        trimmedUrl,
         height: height,
         width: width ?? double.infinity,
         fit: BoxFit.cover,
@@ -188,7 +237,7 @@ class _RealhomeState extends State<Realhome> {
       );
     } else {
       return Image.asset(
-        imageUrl,
+        trimmedUrl,
         height: height,
         width: width ?? double.infinity,
         fit: BoxFit.cover,
@@ -389,98 +438,112 @@ class _RealhomeState extends State<Realhome> {
                     // Categories section
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: List.generate(
-                            fcategory.length,
-                            (index) => Padding(
-                              padding: EdgeInsets.only(
-                                left: index == 0 ? 16 : 12,
-                                right: index == fcategory.length - 1 ? 16 : 0,
+                      child: _isLoadingCategories
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
                               ),
-                              child: InkWell(
-                                onTap: () {
-                                  final filterItems = _products
-                                      .where(
-                                        (item) =>
-                                            item.categoryId.toString() ==
-                                            fcategory[index].name,
-                                      )
-                                      .map((product) => _productToItemModel(product))
-                                      .toList();
+                            )
+                          : _categories.isEmpty && _hasCategoryError
+                              ? const SizedBox.shrink() // Hide if error and no categories
+                              : SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: List.generate(
+                                      _categories.isEmpty ? fcategory.length : _categories.length,
+                                      (index) {
+                                        // Use API categories if available, otherwise fallback to default
+                                        final category = _categories.isEmpty
+                                            ? fcategory[index]
+                                            : null;
+                                        final categoryModel = _categories.isEmpty
+                                            ? null
+                                            : _categories[index];
+                                        
+                                        final categoryName = categoryModel?.name ?? category?.name ?? '';
+                                        final categoryImage = categoryModel?.image ?? category?.image ?? '';
+                                        final categoryId = categoryModel?.id ?? 0;
+
+                                        return Padding(
+                                          padding: EdgeInsets.only(
+                                            left: index == 0 ? 16 : 12,
+                                            right: index == (_categories.isEmpty ? fcategory.length : _categories.length) - 1 ? 16 : 0,
+                                          ),
+                                          child: InkWell(
+                                            onTap: () {
+                                              final filterItems = _products
+                                                  .where(
+                                                    (item) =>
+                                                        item.categoryId == categoryId,
+                                                  )
+                                                  .map((product) => _productToItemModel(product))
+                                                  .toList();
 
                                   Navigator.push(
                                     context,
                                     SmoothPageRoute(
                                       child: CategoryItems(
-                                        category: fcategory[index].name,
-                                        categoItems: filterItems,
+                                        category: categoryName,
+                                        categoryId: categoryId,
                                       ),
                                     ),
                                   );
-                                },
-                                child: SizedBox(
-                                  width: 80,
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        height: 80,
-                                        width: 80,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.05,
-                                              ),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Image.asset(
-                                            fcategory[index].image,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                                  return Container(
-                                                    color: Colors.grey[200],
-                                                    child: Icon(
-                                                      Icons.image_not_supported,
-                                                      color: Colors.grey[400],
-                                                      size: 30,
+                                            },
+                                            child: SizedBox(
+                                              width: 80,
+                                              child: Column(
+                                                children: [
+                                                  Container(
+                                                    height: 80,
+                                                    width: 80,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius: BorderRadius.circular(
+                                                        12,
+                                                      ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black.withOpacity(
+                                                            0.05,
+                                                          ),
+                                                          blurRadius: 4,
+                                                          offset: const Offset(0, 2),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  );
-                                                },
+                                                    child: ClipRRect(
+                                                      borderRadius: BorderRadius.circular(
+                                                        12,
+                                                      ),
+                                                      child: _buildProductImage(
+                                                        categoryImage,
+                                                        height: 80,
+                                                        width: 80,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    categoryName,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: uberBlack,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        fcategory[index].name,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: uberBlack,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
 
                     // Promotional banner
@@ -654,7 +717,7 @@ class _RealhomeState extends State<Realhome> {
                               Navigator.push(
                                 context,
                                 SmoothPageRoute(
-                                  child: Detail(ecom: eCommerceItems),
+                                  child: Detail(productId: product.id),
                                 ),
                               );
                             },
@@ -894,20 +957,25 @@ class _RealhomeState extends State<Realhome> {
                                                               }
                                                             } catch (e) {
                                                               if (mounted) {
+                                                                final errorMessage = e.toString().replaceAll('Exception: ', '');
+                                                                final isAuthError = errorMessage.contains('authenticated') || 
+                                                                                    errorMessage.contains('Authentication');
                                                                 ScaffoldMessenger.of(
                                                                   context,
                                                                 ).showSnackBar(
                                                                   SnackBar(
                                                                     content: Text(
-                                                                      "Failed to add to cart: ${e.toString().replaceAll('Exception: ', '')}",
+                                                                      isAuthError
+                                                                          ? "You must be authenticated to add items to cart"
+                                                                          : "Failed to add to cart: $errorMessage",
                                                                     ),
                                                                     duration:
                                                                         const Duration(
                                                                           seconds:
-                                                                              2,
+                                                                              3,
                                                                         ),
                                                                     backgroundColor:
-                                                                        Colors.red,
+                                                                        isAuthError ? Colors.orange : Colors.red,
                                                                     behavior:
                                                                         SnackBarBehavior
                                                                             .floating,
