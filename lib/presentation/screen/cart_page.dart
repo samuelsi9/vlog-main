@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Utils/cart_service.dart';
 import 'package:vlog/Utils/storage_service.dart';
+import 'package:vlog/presentation/addressess/choiceAddress.dart';
 
 // Color scheme
 const Color primaryColor = Color(0xFFE53E3E);
@@ -570,9 +571,8 @@ class _CartPageState extends State<CartPage> {
               );
             },
           );
-                  },
-                ),
-      ),
+            },
+          ),
     );
   }
 }
@@ -1102,7 +1102,11 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                               color: Colors.transparent,
                               child: InkWell(
                                 onTap: () {
-                                  Navigator.of(context).pushNamed('/checkout');
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const ChoiceAddress(fromCheckout: true),
+                                    ),
+                                  );
                                 },
                                 borderRadius: BorderRadius.circular(16),
                                 child: const Center(

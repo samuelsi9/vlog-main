@@ -9,6 +9,7 @@ class DeliveryAddressModel {
   final double latitude;
   final double longitude;
   final String? instructions;
+  final String? phone;
   final bool isDefault;
 
   DeliveryAddressModel({
@@ -22,10 +23,11 @@ class DeliveryAddressModel {
     required this.latitude,
     required this.longitude,
     this.instructions,
+    this.phone,
     this.isDefault = false,
   });
 
-  String get fullAddress => '$street, $postalCode $city, $country';
+  String get fullAddress => '$street, ${postalCode.isNotEmpty ? "$postalCode " : ""}$city${country.isNotEmpty ? ", $country" : ""}'.trim();
 
   factory DeliveryAddressModel.fromMap(Map<String, dynamic> map) {
     return DeliveryAddressModel(
@@ -39,7 +41,38 @@ class DeliveryAddressModel {
       latitude: (map['latitude'] ?? 0.0).toDouble(),
       longitude: (map['longitude'] ?? 0.0).toDouble(),
       instructions: map['instructions']?.toString(),
+      phone: map['phone']?.toString(),
       isDefault: map['isDefault'] ?? false,
+    );
+  }
+
+  static bool _toBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) return v == '1' || v.toLowerCase() == 'true';
+    return false;
+  }
+
+  /// From API response: { "data": [ { id, user_id, street, building_number, apartment_number, city, is_default, latitude, longitude, label, ... } ] }
+  factory DeliveryAddressModel.fromApiMap(Map<String, dynamic> map) {
+    final building = map['building_number']?.toString() ?? '';
+    final apartment = map['apartment_number']?.toString() ?? '';
+    final streetPart = map['street']?.toString() ?? '';
+    final street = [streetPart, building, apartment].where((e) => e.isNotEmpty).join(', ');
+    return DeliveryAddressModel(
+      id: map['id']?.toString() ?? '',
+      userId: map['user_id']?.toString() ?? map['userId']?.toString() ?? '',
+      label: map['address_type']?.toString() ?? map['label']?.toString() ?? 'Address',
+      street: street.isEmpty ? streetPart : street,
+      city: map['city']?.toString() ?? '',
+      postalCode: map['postal_code']?.toString() ?? map['postalCode']?.toString() ?? '',
+      country: map['country']?.toString() ?? '',
+      latitude: (map['latitude'] ?? 0.0).toDouble(),
+      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      instructions: map['instructions']?.toString() ?? map['nearby_landmark']?.toString(),
+      phone: map['phone']?.toString(),
+      isDefault: _toBool(map['is_default']) || _toBool(map['isDefault']),
     );
   }
 
@@ -55,6 +88,7 @@ class DeliveryAddressModel {
       'latitude': latitude,
       'longitude': longitude,
       'instructions': instructions,
+      'phone': phone,
       'isDefault': isDefault,
     };
   }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/Data/apiservices.dart';
-import 'package:vlog/presentation/home.dart';
+import 'package:vlog/presentation/addressess/addresses.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -68,7 +68,7 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => MainScreen(token: userCredential.user!.uid),
+            builder: (_) => const Addresses(),
           ),
         );
       }
@@ -114,7 +114,7 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => MainScreen(token: userCredential.user!.uid),
+            builder: (_) => const Addresses(),
           ),
         );
       }
@@ -208,7 +208,6 @@ class _RegisterPageState extends State<RegisterPage> {
         );
 
         if (result.isNotEmpty && result['user'] != null) {
-          final user = result['user'] as Map<String, dynamic>;
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -216,11 +215,11 @@ class _RegisterPageState extends State<RegisterPage> {
                 backgroundColor: Colors.green,
               ),
             );
-            // Navigate directly to MainScreen after successful registration
+            // Navigate to Addresses screen, then user can save address and go to real home
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => MainScreen(token: user['id']?.toString()),
+                builder: (context) => const Addresses(),
               ),
             );
           }

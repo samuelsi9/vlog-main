@@ -5,6 +5,7 @@ import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Models/product_detail_model.dart';
 import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/cart_model.dart';
+import 'package:vlog/Models/delivery_address_model.dart';
 
 class AuthService {
   final Dio _dio = Dio(
@@ -336,6 +337,129 @@ class AuthService {
       rethrow;
     } catch (e) {
       print('Unexpected error during get categories: $e');
+      rethrow;
+    }
+  }
+
+  // ================= ADDRESS API =================
+
+  /// Create a new address for the authenticated user.
+  /// [street], [buildingNumber], [apartmentNumber], [city] are required.
+  /// [latitude], [longitude] are optional; [isDefault] defaults to false.
+  /// Uses the user's token via AuthService interceptor.
+  Future<Map<String, dynamic>> createAddress({
+    required String street,
+    required String buildingNumber,
+    required String apartmentNumber,
+    required String city,
+    required double latitude,
+    required double longitude,
+    bool isDefault = false,
+    String? receiverName,
+    String? addressType,
+    String? nearbyLandmark,
+  }) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+
+      final data = <String, dynamic>{
+        'street': street,
+        'building_number': buildingNumber,
+        'apartment_number': apartmentNumber,
+        'city': city,
+        'latitude': latitude,
+        'longitude': longitude,
+        'is_default': isDefault,
+      };
+      if (receiverName != null && receiverName.isNotEmpty) data['receiver_name'] = receiverName;
+      if (addressType != null && addressType.isNotEmpty) data['address_type'] = addressType;
+      if (nearbyLandmark != null && nearbyLandmark.isNotEmpty) data['nearby_landmark'] = nearbyLandmark;
+
+      final response = await _dio.post(
+        '/api/addresses',
+        data: data,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : <String, dynamic>{};
+        return data;
+      } else {
+        throw Exception('Failed to create address: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('Create address failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during create address: $e');
+      rethrow;
+    }
+  }
+
+  /// Get list of addresses for the authenticated user.
+  Future<List<DeliveryAddressModel>> getAddresses() async {
+    return allMyAddresses();
+  }
+
+  /// Fetches all addresses for the current user from GET /api/addresses.
+  /// Response shape: { "data": [ { id, user_id, street, building_number, apartment_number, city, is_default, latitude, longitude, label, created_at, updated_at } ] }
+  Future<List<DeliveryAddressModel>> allMyAddresses() async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.get('/api/addresses');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic> && data['data'] is List) {
+          final list = data['data'] as List;
+          return list
+              .map((e) => DeliveryAddressModel.fromApiMap(
+                  e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        if (data is List) {
+          final list = data;
+          return list
+              .map((e) => DeliveryAddressModel.fromApiMap(
+                  e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        return [];
+      }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return [];
+      print('allMyAddresses failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during allMyAddresses: $e');
+      rethrow;
+    }
+  }
+
+  /// Marks an address as "in use" (default for delivery).
+  /// Calls PUT /api/addresses/{id}/use with the user's auth token.
+  Future<void> useAddress(String id) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.post('/api/addresses/$id/use');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to set address as default: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('useAddress failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during useAddress: $e');
       rethrow;
     }
   }

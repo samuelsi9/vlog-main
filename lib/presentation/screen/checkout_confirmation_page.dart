@@ -29,6 +29,58 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
   final String _defaultAddress = '123 Main Street';
   final String _defaultCity = 'Istanbul';
 
+  /// Build image widget: handles empty, network URLs, or asset paths.
+  Widget _buildImage(String imageUrl, {double? width, double? height}) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        width: width ?? 50,
+        height: height ?? 50,
+        color: Colors.grey[200],
+        child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 28),
+      );
+    }
+    final trimmed = imageUrl.trim();
+    final isNetwork = trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.startsWith('www.') ||
+        trimmed.contains('://');
+    if (isNetwork) {
+      return Image.network(
+        trimmed,
+        width: width ?? 50,
+        height: height ?? 50,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            width: width ?? 50,
+            height: height ?? 50,
+            color: Colors.grey[200],
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        },
+        errorBuilder: (context, _, __) => Container(
+          width: width ?? 50,
+          height: height ?? 50,
+          color: Colors.grey[200],
+          child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 28),
+        ),
+      );
+    }
+    return Image.asset(
+      trimmed,
+      width: width ?? 50,
+      height: height ?? 50,
+      fit: BoxFit.cover,
+      errorBuilder: (context, _, __) => Container(
+        width: width ?? 50,
+        height: height ?? 50,
+        color: Colors.grey[200],
+        child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 28),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _notesController.dispose();
@@ -308,11 +360,10 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                     children: [
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.asset(
+                                        child: _buildImage(
                                           ci.item.image,
                                           width: 50,
                                           height: 50,
-                                          fit: BoxFit.cover,
                                         ),
                                       ),
                                       const SizedBox(width: 12),

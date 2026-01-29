@@ -1,286 +1,110 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/presentation/home.dart';
 
+const Color _purplePrimary = Color(0xFF7C4DFF);
+
 class Addresses extends StatefulWidget {
-  final String? userId;
-  const Addresses({super.key, this.userId});
+  const Addresses({super.key});
 
   @override
   State<Addresses> createState() => _AddressesState();
 }
 
 class _AddressesState extends State<Addresses> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  // Map variables
-  GoogleMapController? _mapController;
-  LatLng _selectedLocation = const LatLng(48.8566, 2.3522); // Default: Paris
-  Marker? _marker;
-  bool _isLoadingLocation = false;
-  String? _selectedAddressText;
-  double? _latitude;
-  double? _longitude;
-
-  // Form controllers
-  final TextEditingController _labelController = TextEditingController();
-  final TextEditingController _streetController = TextEditingController();
-  final TextEditingController _buildingNumberController = TextEditingController();
-  final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _postalCodeController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController();
-  final TextEditingController _instructionsController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isDefault = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize with default location and marker
-    _latitude = _selectedLocation.latitude;
-    _longitude = _selectedLocation.longitude;
-    _updateMarker(_selectedLocation);
-    // Try to get current location, but don't block if it fails
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _getCurrentLocation();
-    });
-  }
+  final streetController = TextEditingController();
+  final buildingNumberController = TextEditingController();
+  final apartmentNumberController = TextEditingController();
+  final cityController = TextEditingController();
+  final latitudeController = TextEditingController();
+  final longitudeController = TextEditingController();
+  bool isDefault = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _mapController?.dispose();
-    _labelController.dispose();
-    _streetController.dispose();
-    _buildingNumberController.dispose();
-    _cityController.dispose();
-    _postalCodeController.dispose();
-    _countryController.dispose();
-    _instructionsController.dispose();
+    streetController.dispose();
+    buildingNumberController.dispose();
+    apartmentNumberController.dispose();
+    cityController.dispose();
+    latitudeController.dispose();
+    longitudeController.dispose();
     super.dispose();
   }
 
-  Future<void> _getCurrentLocation() async {
-    setState(() => _isLoadingLocation = true);
-    
+  String? _validateRequired(String? value, String fieldName) {
+    if (value == null || value.trim().isEmpty) return '$fieldName is required';
+    return null;
+  }
+
+  String? _validateLatitude(String? value) {
+    if (value == null || value.trim().isEmpty) return 'latitude is required';
+    final v = double.tryParse(value.trim());
+    if (v == null) return 'Enter a valid number';
+    if (v < -90 || v > 90) return 'Must be between -90 and 90';
+    return null;
+  }
+
+  String? _validateLongitude(String? value) {
+    if (value == null || value.trim().isEmpty) return 'longitude is required';
+    final v = double.tryParse(value.trim());
+    if (v == null) return 'Enter a valid number';
+    if (v < -180 || v > 180) return 'Must be between -180 and 180';
+    return null;
+  }
+
+  Future<void> _saveAddress() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location services are disabled')),
-          );
-        }
-        setState(() => _isLoadingLocation = false);
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Location permissions are denied')),
-            );
-          }
-          setState(() => _isLoadingLocation = false);
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permissions are permanently denied')),
-          );
-        }
-        setState(() => _isLoadingLocation = false);
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      final lat = double.parse(latitudeController.text.trim());
+      final lng = double.parse(longitudeController.text.trim());
+      final auth = AuthService();
+      await auth.createAddress(
+        street: streetController.text.trim(),
+        buildingNumber: buildingNumberController.text.trim(),
+        apartmentNumber: apartmentNumberController.text.trim(),
+        city: cityController.text.trim(),
+        latitude: lat,
+        longitude: lng,
+        isDefault: isDefault,
       );
-
-      final newLocation = LatLng(position.latitude, position.longitude);
-      setState(() {
-        _selectedLocation = newLocation;
-        _latitude = newLocation.latitude;
-        _longitude = newLocation.longitude;
-        _isLoadingLocation = false;
-      });
-
-      _updateMarker(newLocation);
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(newLocation, 15),
-      );
-      await _reverseGeocode(newLocation);
-    } catch (e) {
-      setState(() => _isLoadingLocation = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error getting location: $e')),
-        );
-      }
-    }
-  }
-
-  void _updateMarker(LatLng location) {
-    setState(() {
-      _marker = Marker(
-        markerId: const MarkerId('selected_location'),
-        position: location,
-        draggable: true,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        onDragEnd: (newPosition) {
-          setState(() {
-            _selectedLocation = newPosition;
-            _latitude = newPosition.latitude;
-            _longitude = newPosition.longitude;
-          });
-          _reverseGeocode(newPosition);
-        },
-      );
-    });
-  }
-
-  Future<void> _reverseGeocode(LatLng location) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        location.latitude,
-        location.longitude,
-      );
-
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
-        setState(() {
-          _selectedAddressText = '${place.street ?? ''}, ${place.locality ?? ''}, ${place.postalCode ?? ''}';
-          _streetController.text = place.street ?? '';
-          _cityController.text = place.locality ?? '';
-          _postalCodeController.text = place.postalCode ?? '';
-          _countryController.text = place.country ?? '';
-        });
-      }
-    } catch (e) {
-      debugPrint('Reverse geocoding error: $e');
-    }
-  }
-
-  void _onMapTap(LatLng location) {
-    setState(() {
-      _selectedLocation = location;
-      _latitude = location.latitude;
-      _longitude = location.longitude;
-    });
-    _updateMarker(location);
-    _reverseGeocode(location);
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-  }
-
-  void _nextPage() {
-    if (_currentPage == 0) {
-      // Always allow navigation to next page, even if location isn't perfect
-      // User can still manually enter address
-      setState(() {
-        _currentPage = 1;
-      });
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _previousPage() {
-    _pageController.previousPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  void _saveAddress() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Validate required fields
-    if (_streetController.text.trim().isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter street address'),
-          backgroundColor: Colors.red,
+          content: Text('Address saved successfully'),
+          backgroundColor: Colors.green,
         ),
       );
-      return;
-    }
-
-    if (_cityController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter city'),
-          backgroundColor: Colors.red,
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainScreen(token: null),
         ),
       );
-      return;
-    }
-
-    // Here you would save the address to your backend
-    final addressData = {
-      "user_id": widget.userId,
-      "label": _labelController.text.trim().isEmpty ? "Home" : _labelController.text.trim(),
-      "street": _streetController.text.trim(),
-      "building_number": _buildingNumberController.text.trim(),
-      "city": _cityController.text.trim(),
-      "postal_code": _postalCodeController.text.trim(),
-      "country": _countryController.text.trim().isEmpty ? "Unknown" : _countryController.text.trim(),
-      "instructions": _instructionsController.text.trim().isEmpty ? null : _instructionsController.text.trim(),
-      "latitude": _latitude ?? _selectedLocation.latitude,
-      "longitude": _longitude ?? _selectedLocation.longitude,
-      "is_default": _isDefault,
-    };
-
-    debugPrint("ADDRESS DATA => $addressData");
-
-    if (mounted) {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      // Simulate API call (replace with actual API call)
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Address saved successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        // Navigate to MainScreen after saving address
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MainScreen(token: widget.userId),
-          ),
-          (route) => false, // Remove all previous routes
-        );
+    } catch (e) {
+      if (!mounted) return;
+      String message = 'Failed to save address';
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        message = 'Please login again';
+      } else if (e.toString().contains('network') ||
+          e.toString().contains('Network') ||
+          e.toString().contains('SocketException')) {
+        message = 'Network error. Please check your connection.';
+      } else {
+        message = e.toString().replaceAll('Exception: ', '');
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -291,588 +115,139 @@ class _AddressesState extends State<Addresses> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: widget.userId != null
-            ? null // Hide back button if coming from registration
-            : IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black),
-                onPressed: () => Navigator.pop(context),
-              ),
-        title: Text(
-          _currentPage == 0 ? 'Select Location' : 'Address Details',
-          style: const TextStyle(
-            color: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          'Address details',
+          style: TextStyle(
+            color: Colors.black87,
             fontWeight: FontWeight.bold,
-            fontSize: 18,
+            fontSize: 20,
           ),
         ),
-        actions: [
-          if (_currentPage == 1)
-            TextButton(
-              onPressed: _saveAddress,
-              child: const Text(
-                'Save',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
+        centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // Page indicator dots at the top
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildPageIndicator(0),
-                Container(
-                  width: 30,
-                  height: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  color: Colors.grey[300],
-                ),
-                _buildPageIndicator(1),
-              ],
-            ),
-          ),
-          // PageView
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPage = index;
-                });
-              },
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildMapPage(),
-                _buildAddressFormPage(),
-              ],
-            ),
-          ),
-          // Navigation buttons
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                if (_currentPage > 0)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _previousPage,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: Colors.black),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Back',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_currentPage > 0) const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _currentPage == 0 ? _nextPage : _saveAddress,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      _currentPage == 0 ? 'Continue' : 'Save Address',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPageIndicator(int index) {
-    final isActive = _currentPage == index;
-    return Container(
-      width: isActive ? 24 : 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: isActive ? Colors.black : Colors.grey[300],
-        borderRadius: BorderRadius.circular(4),
-      ),
-    );
-  }
-
-  Widget _buildMapPage() {
-    return Stack(
-      children: [
-        // Google Maps integration with interactive map
-        // Wrap in try-catch widget to handle map loading errors gracefully
-        Builder(
-          builder: (context) {
-            try {
-              return GoogleMap(
-                onMapCreated: _onMapCreated,
-                initialCameraPosition: CameraPosition(
-                  target: _selectedLocation,
-                  zoom: 15,
-                ),
-                markers: _marker != null ? {_marker!} : {},
-                onTap: _onMapTap,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-                mapToolbarEnabled: false,
-                myLocationEnabled: true,
-                onCameraMove: (CameraPosition position) {
-                  // Update location as user pans the map
-                  setState(() {
-                    _selectedLocation = position.target;
-                    _latitude = position.target.latitude;
-                    _longitude = position.target.longitude;
-                  });
-                },
-                onCameraIdle: () {
-                  // When map stops moving, update marker and geocode
-                  _updateMarker(_selectedLocation);
-                  _reverseGeocode(_selectedLocation);
-                },
-              );
-            } catch (e) {
-              debugPrint('Map error: $e');
-              // Fallback UI if map fails to load
-              return Container(
-                color: Colors.grey[200],
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.map, size: 64, color: Colors.grey),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Map unavailable',
-                        style: TextStyle(fontSize: 18, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'You can still enter your address manually',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _nextPage,
-                        child: const Text('Continue to Address Form'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-          },
-        ),
-        // Current location button
-        Positioned(
-          bottom: 100,
-          right: 16,
-          child: FloatingActionButton(
-            onPressed: _getCurrentLocation,
-            backgroundColor: Colors.white,
-            child: _isLoadingLocation
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location, color: Colors.black),
-          ),
-        ),
-        // Location info card showing selected address and coordinates
-        Positioned(
-          top: 16,
-          left: 16,
-          right: 16,
-          child: Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.location_on, color: Colors.red, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Selected Location',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _selectedAddressText ?? 'Tap on map to select location',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Lat: ${_selectedLocation.latitude.toStringAsFixed(6)}, '
-                    'Lng: ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Instructions overlay
-        Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Card(
-                color: Colors.black87,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Tap on the map or drag the marker to select your location',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              _field(
+                controller: streetController,
+                label: 'street',
+                hint: 'e.g. qqaa ila',
+                validator: (v) => _validateRequired(v, 'street'),
               ),
-              const SizedBox(height: 8),
-              // Skip map button
-              TextButton(
-                onPressed: _nextPage,
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.9),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: const Text(
-                  'Skip Map - Enter Address Manually',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w600,
+              const SizedBox(height: 16),
+              _field(
+                controller: buildingNumberController,
+                label: 'building_number',
+                hint: 'e.g. Well wwwarir',
+                validator: (v) => _validateRequired(v, 'building_number'),
+              ),
+              const SizedBox(height: 16),
+              _field(
+                controller: apartmentNumberController,
+                label: 'apartment_number',
+                hint: 'e.g. wall 678',
+                validator: (v) => _validateRequired(v, 'apartment_number'),
+              ),
+              const SizedBox(height: 16),
+              _field(
+                controller: cityController,
+                label: 'city',
+                hint: 'e.g. Girne',
+                validator: (v) => _validateRequired(v, 'city'),
+              ),
+              const SizedBox(height: 16),
+              _field(
+                controller: latitudeController,
+                label: 'latitude',
+                hint: 'e.g. -898.598761',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: _validateLatitude,
+              ),
+              const SizedBox(height: 16),
+              _field(
+                controller: longitudeController,
+                label: 'longitude',
+                hint: 'e.g. -968.598761',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: _validateLongitude,
+              ),
+              const SizedBox(height: 20),
+              SwitchListTile(
+                title: const Text('is_default'),
+                subtitle: const Text('Use as default delivery address'),
+                value: isDefault,
+                onChanged: (value) => setState(() => isDefault = value),
+                activeColor: _purplePrimary,
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _saveAddress,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _purplePrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
                   ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save address'),
                 ),
               ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildAddressFormPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Location summary card showing selected coordinates
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Location Selected',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _selectedAddressText ?? 'Location coordinates selected',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (_latitude != null && _longitude != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Coordinates: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Address label field (Home, Office, etc.) - Optional
-            TextFormField(
-              controller: _labelController,
-              decoration: InputDecoration(
-                labelText: "Address Label (Optional)",
-                hintText: "e.g., Home, Office, etc.",
-                prefixIcon: const Icon(Icons.label_outline),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Street and building number fields (side by side)
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _streetController,
-                    decoration: InputDecoration(
-                      labelText: "Street",
-                      hintText: "Street name",
-                      prefixIcon: const Icon(Icons.streetview),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Required';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _buildingNumberController,
-                    decoration: InputDecoration(
-                      labelText: "Building #",
-                      hintText: "123",
-                      prefixIcon: const Icon(Icons.home),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // City and postal code fields (side by side)
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _postalCodeController,
-                    decoration: InputDecoration(
-                      labelText: "Postal Code",
-                      hintText: "75001",
-                      prefixIcon: const Icon(Icons.markunread_mailbox),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Required';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _cityController,
-                    decoration: InputDecoration(
-                      labelText: "City",
-                      hintText: "City name",
-                      prefixIcon: const Icon(Icons.location_city),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Required';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Country field - Optional
-            TextFormField(
-              controller: _countryController,
-              decoration: InputDecoration(
-                labelText: "Country (Optional)",
-                hintText: "Country name",
-                prefixIcon: const Icon(Icons.public),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Delivery instructions (optional, multi-line)
-            TextFormField(
-              controller: _instructionsController,
-              decoration: InputDecoration(
-                labelText: "Delivery Instructions (Optional)",
-                hintText: "e.g., Ring doorbell twice, Apartment 3B",
-                prefixIcon: const Icon(Icons.note_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 24),
-            // Set as default address checkbox
-            InkWell(
-              onTap: () {
-                setState(() {
-                  _isDefault = !_isDefault;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: _isDefault,
-                      onChanged: (value) {
-                        setState(() {
-                          _isDefault = value ?? false;
-                        });
-                      },
-                      activeColor: Colors.black,
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Set as default address",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "This address will be used by default for your orders",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-          ],
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _purplePrimary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
         ),
       ),
+      keyboardType: keyboardType,
+      validator: validator,
     );
   }
 }

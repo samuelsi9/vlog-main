@@ -48,7 +48,7 @@ class _MainScreenState extends State<MainScreen> {
       const WishlistPage(),
       const SupportQAPage(),
       ProfileScreen(),
-      Addresses(),
+ 
     ];
     print(widget.token);
     return Scaffold(
@@ -79,10 +79,7 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.person_2_outlined),
             label: "Profile",
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.location_on),
-            label: "Address",
-          ),
+          
         ],
       ),
       body: pages[selectedIndex],

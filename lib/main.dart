@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:uni_links/uni_links.dart';
 import 'dart:async';
 import 'package:vlog/presentation/home.dart';
+import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:vlog/presentation/screen/checkout_confirmation_page.dart';
 import 'package:vlog/presentation/auth/reset_password_page.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
 import 'package:vlog/Utils/delivery_tracking_service.dart';
@@ -32,6 +34,7 @@ class _MyAppState extends State<MyApp> {
   StreamSubscription? _sub;
   String? _initialLink;
   bool _initialized = false;
+  bool _isAuthenticated = false;
 
   @override
   void initState() {
@@ -63,10 +66,13 @@ class _MyAppState extends State<MyApp> {
   Future<void> _checkAuth() async {
     if (_initialized) return;
     final prefs = await SharedPreferences.getInstance();
-    prefs.getString('auth_token');
+    final hasStorageToken = await StorageService.isLoggedIn();
+    final hasPrefsToken = (prefs.getString('auth_token') ?? '').isNotEmpty;
     // Simulate loading time to show skeleton
     await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
     setState(() {
+      _isAuthenticated = hasStorageToken || hasPrefsToken;
       _initialized = true;
     });
   }
@@ -130,9 +136,9 @@ class _MyAppState extends State<MyApp> {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         routes: {'/checkout': (context) => const CheckoutConfirmationPage()},
-        home: MainScreen(
-          token: null,
-        ), //_isAuthenticated ? MainScreen(token: null) : LoginPage(),
+        home: _isAuthenticated
+            ? MainScreen(token: null)
+            : const LoginPage(),
       ),
     );
   }

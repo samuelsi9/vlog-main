@@ -506,29 +506,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                               child: InkWell(
-                                                onTap: () {
-                                    cartService.addToCart(item);
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "${item.name} added to cart",
-                                        ),
-                                                      duration: const Duration(
-                                                          seconds: 1),
-                                                      backgroundColor:
-                                                          primaryColor,
-                                                      behavior: SnackBarBehavior
-                                                          .floating,
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                                10),
-                                                      ),
-                                      ),
-                                    );
-                                  },
+                                                onTap: () async {
+                                                  try {
+                                                    await cartService.addToCart(item);
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            "${item.name} added to cart",
+                                                          ),
+                                                          duration: const Duration(
+                                                              seconds: 1),
+                                                          backgroundColor:
+                                                              primaryColor,
+                                                          behavior: SnackBarBehavior
+                                                              .floating,
+                                                          shape:
+                                                              RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                          10),
+                                                              ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      final errorMessage = e.toString().replaceAll('Exception: ', '');
+                                                      final isAuthError = errorMessage.contains('authenticated') || 
+                                                                          errorMessage.contains('Authentication');
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            isAuthError
+                                                                ? "You must be authenticated to add items to cart"
+                                                                : "Failed to add to cart: $errorMessage",
+                                                          ),
+                                                          duration: const Duration(
+                                                              seconds: 3),
+                                                          backgroundColor:
+                                                              isAuthError ? Colors.orange : Colors.red,
+                                                          behavior: SnackBarBehavior
+                                                              .floating,
+                                                          shape:
+                                                              RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                          10),
+                                                              ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+                                                },
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                                 child: Container(
