@@ -828,6 +828,7 @@ class AuthService {
       rethrow;
     }
   }
+  
 
   /// Clear entire cart
   /// Returns empty CartModel

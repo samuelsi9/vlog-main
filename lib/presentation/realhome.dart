@@ -10,7 +10,7 @@ import 'package:vlog/presentation/category_items.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/search_page.dart';
-
+import 'package:vlog/Data/notification_service.dart';
 // Smooth page transition utility
 class SmoothPageRoute<T> extends PageRouteBuilder<T> {
   final Widget child;
@@ -314,6 +314,9 @@ class _RealhomeState extends State<Realhome> {
                     ),
                   ),
                   const SizedBox(width: 16),
+
+
+
                   // Cart icon
                   Consumer<CartService>(
                     builder: (context, cartService, child) {
@@ -645,7 +648,9 @@ class _RealhomeState extends State<Realhome> {
                         ],
                       ),
                     ),
-
+                  
+ElevatedButton(onPressed: () {
+  NotificationService().showNotification( "Test", "This is a test notification");}, child: Text("Show Notification")),
                     const SizedBox(height: 16),
 
                     // Loading indicator or Products grid

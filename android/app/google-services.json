@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1016372339085",
+    "project_id": "koliagonotification",
+    "storage_bucket": "koliagonotification.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1016372339085:android:df71b1a81955f24486ddc4",
+        "android_client_info": {
+          "package_name": "com.example.vlog"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiXiDfXqyKaKLc98E_Ndc__whvoY7BeRU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
