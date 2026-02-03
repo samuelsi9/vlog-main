@@ -6,6 +6,8 @@ import 'package:vlog/Models/product_detail_model.dart';
 import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/cart_model.dart';
 import 'package:vlog/Models/delivery_address_model.dart';
+import 'package:vlog/Models/order_history_model.dart';
+import 'package:vlog/Models/wishlist_model.dart';
 
 class AuthService {
   final Dio _dio = Dio(
@@ -460,6 +462,190 @@ class AuthService {
       rethrow;
     } catch (e) {
       print('Unexpected error during useAddress: $e');
+      rethrow;
+    }
+  }
+
+  // ================= ORDERS API =================
+
+  /// Place an order. POST /api/orders with auth token.
+  /// Body: address_id (int), payment_method (e.g. "cash_on_delivery"), delivery_time (e.g. "11:00-12:00").
+  /// Returns { "message": "Order placed successfully", "order": { id, subtotal, delivery_fee, grand_total, status, payment_method, payment_status, delivery_time } }
+  Future<Map<String, dynamic>> placeOrder({
+    required int addressId,
+    required String paymentMethod,
+    required String deliveryTime,
+  }) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.post(
+        '/api/orders',
+        data: {
+          'address_id': addressId,
+          'payment_method': paymentMethod,
+          'delivery_time': deliveryTime,
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) return data;
+        return <String, dynamic>{};
+      }
+      throw Exception('Failed to place order: ${response.statusCode}');
+    } on DioException catch (e) {
+      print('placeOrder failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during placeOrder: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches all order history for the current user. GET /api/orders with auth token.
+  /// Response: { "data": [ { id, total_amount, status, payment_method, payment_status, delivery_fee, grand_total, created_at, items: [...] } ] }
+  Future<List<AllOrderHistoryModel>> getAllOrderHistory() async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.get('/api/orders');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic> && data['data'] is List) {
+          final list = data['data'] as List;
+          return list
+              .map((e) => AllOrderHistoryModel.fromMap(
+                  e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        if (data is List) {
+          final list = data;
+          return list
+              .map((e) => AllOrderHistoryModel.fromMap(
+                  e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        return [];
+      }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return [];
+      print('getAllOrderHistory failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during getAllOrderHistory: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches a single order by id. GET /api/orders/{id} with auth token.
+  /// Response: { id, status, subtotal, delivery_fee, total, delivery_date, delivery_time, created_at, items: [...] }
+  Future<SingleOrderHistoryModel> getSingleOrderHistory(String orderId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.get('/api/orders/$orderId');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return SingleOrderHistoryModel.fromMap(data);
+        }
+        throw Exception('Invalid order response');
+      }
+      throw Exception('Failed to fetch order: ${response.statusCode}');
+    } on DioException catch (e) {
+      print('getSingleOrderHistory failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during getSingleOrderHistory: $e');
+      rethrow;
+    }
+  }
+
+  // ================= WISHLIST API =================
+
+  /// Fetches wishlist for the current user. GET /api/wishlist?page=1 with auth token.
+  /// Response: { data: [...], links, meta } (paginated).
+  Future<WishlistResponse> fetchWishlist({int page = 1}) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.get(
+        '/api/wishlist',
+        queryParameters: {'page': page},
+      );
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return WishlistResponse.fromMap(data);
+        }
+        return WishlistResponse(data: []);
+      }
+      return WishlistResponse(data: []);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return WishlistResponse(data: []);
+      print('fetchWishlist failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during fetchWishlist: $e');
+      rethrow;
+    }
+  }
+
+  /// Adds a product to wishlist. POST /api/wishlist with body { product_id: productId }.
+  /// Returns paginated wishlist response.
+  Future<WishlistResponse> addToWishlist(int productId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.post(
+        '/api/wishlist',
+        data: {'product_id': productId},
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return WishlistResponse.fromMap(data);
+        }
+        return WishlistResponse(data: []);
+      }
+      throw Exception('Failed to add to wishlist: ${response.statusCode}');
+    } on DioException catch (e) {
+      print('addToWishlist failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during addToWishlist: $e');
+      rethrow;
+    }
+  }
+
+  /// Removes an item from wishlist. DELETE /api/wishlist/{wishlistId}.
+  /// Response: { message, deleted_id }.
+  Future<void> removeFromWishlist(int wishlistId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.delete('/api/wishlist/$wishlistId');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to remove from wishlist: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('removeFromWishlist failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during removeFromWishlist: $e');
       rethrow;
     }
   }

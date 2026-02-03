@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/cart_service.dart';
-import 'package:vlog/presentation/screen/receipt_page.dart';
+import 'package:vlog/Utils/storage_service.dart';
+import 'package:vlog/Models/delivery_address_model.dart';
+import 'package:vlog/presentation/home.dart';
 import 'package:vlog/presentation/screen/delivery_schedule_page.dart';
+import 'package:vlog/presentation/screen/delivery_tracking_page.dart';
 
 // Red color scheme (matching home page)
 const Color primaryColor = Color(0xFFE53E3E);
 const Color primaryColorLight = Color(0xFFFC8181);
 
 class CheckoutConfirmationPage extends StatefulWidget {
-  const CheckoutConfirmationPage({super.key});
+  /// Address chosen in ChoiceAddress (used for delivery details).
+  final DeliveryAddressModel? selectedAddress;
+
+  const CheckoutConfirmationPage({super.key, this.selectedAddress});
 
   @override
   State<CheckoutConfirmationPage> createState() =>
@@ -22,12 +29,51 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
   String _selectedPaymentMethod = 'cod';
   DateTime? _selectedDeliveryDate;
   String? _selectedDeliveryTime;
-  
-  // Default delivery details (can be loaded from user profile or preferences)
-  final String _defaultFullName = 'Customer';
-  final String _defaultPhone = '+90 555 123 4567';
-  final String _defaultAddress = '123 Main Street';
-  final String _defaultCity = 'Istanbul';
+
+  /// Loaded from StorageService (user name, phone) and selectedAddress.
+  String _fullName = 'Customer';
+  String _phone = '';
+  String _address = '123 Main Street';
+  String _city = 'Istanbul';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeliveryDetails();
+  }
+
+  /// Loads auth user (name, phone) from StorageService and chosen address from ChoiceAddress.
+  Future<void> _loadDeliveryDetails() async {
+    final user = await StorageService.getUser();
+    final addr = widget.selectedAddress;
+    if (!mounted) return;
+    setState(() {
+      // Auth user name: name, full_name, or first_name + last_name
+      final name = user?['name']?.toString().trim();
+      final fullName = user?['full_name']?.toString().trim();
+      final first = user?['first_name']?.toString().trim() ?? '';
+      final last = user?['last_name']?.toString().trim() ?? '';
+      _fullName = (name?.isNotEmpty == true)
+          ? name!
+          : (fullName?.isNotEmpty == true)
+              ? fullName!
+              : '$first $last'.trim().isEmpty
+                  ? 'Customer'
+                  : '$first $last'.trim();
+      // Auth user phone; fallback to address phone if present
+      _phone = user?['phone']?.toString().trim() ??
+          user?['phone_number']?.toString().trim() ??
+          '';
+      if (addr != null) {
+        _address = addr.fullAddress;
+        _city = addr.city.isNotEmpty ? addr.city : _city;
+        if (_phone.isEmpty && addr.phone != null && addr.phone!.trim().isNotEmpty) {
+          _phone = addr.phone!.trim();
+        }
+      }
+      if (_phone.isEmpty) _phone = '+90 555 123 4567';
+    });
+  }
 
   /// Build image widget: handles empty, network URLs, or asset paths.
   Widget _buildImage(String imageUrl, {double? width, double? height}) {
@@ -87,12 +133,11 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
     super.dispose();
   }
 
-  void _placeOrder(BuildContext context) {
+  Future<void> _placeOrder(BuildContext context) async {
     final cart = Provider.of<CartService>(context, listen: false);
     const double minimumOrderAmount = 2000.0;
     final double totalWithDelivery = cart.totalPrice + 250;
-    
-    // Validate minimum order amount
+
     if (totalWithDelivery < minimumOrderAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -106,7 +151,6 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
       return;
     }
 
-    // Validate delivery schedule is selected
     if (_selectedDeliveryDate == null || _selectedDeliveryTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -120,113 +164,173 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
       return;
     }
 
-    // Show success dialog with better message
+    if (widget.selectedAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a delivery address.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final addressId = int.tryParse(widget.selectedAddress!.id) ?? 0;
+    if (addressId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid delivery address.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final auth = AuthService();
+      final paymentMethod = _selectedPaymentMethod == 'cod' ? 'cash_on_delivery' : _selectedPaymentMethod;
+      final response = await auth.placeOrder(
+        addressId: addressId,
+        paymentMethod: paymentMethod,
+        deliveryTime: _selectedDeliveryTime!,
+      );
+
+      if (!mounted) return;
+      final message = response['message']?.toString() ?? '';
+      if (message != 'Order placed successfully') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message.isEmpty ? 'Order could not be placed.' : message),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final order = response['order'] is Map ? response['order'] as Map<String, dynamic> : <String, dynamic>{};
+      final orderId = order['id']?.toString() ?? '';
+
+      cart.clearCart();
+
+      if (!mounted) return;
+      _showOrderSuccessDialog(context, orderId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  void _showOrderSuccessDialog(BuildContext context, String orderId) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                shape: BoxShape.circle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle,
+                  color: primaryColor,
+                  size: 56,
+                ),
               ),
-              child: Icon(
-                Icons.check_circle,
-                color: Colors.green[600],
-                size: 50,
+              const SizedBox(height: 24),
+              const Text(
+                'Order placed successfully',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Order Confirmed!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+              const SizedBox(height: 10),
+              const Text(
+                'Thanks for your order',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Your order has been successfully placed!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Order Total: ₺${totalWithDelivery.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: primaryColor,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'You will receive a confirmation email shortly.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // Save cart items before clearing
-              final savedItems = List<CartItem>.from(cart.cartItems);
-              final savedSubtotal = cart.totalPrice;
-              
-              // Navigate to receipt page with saved items
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => ReceiptPage(
-                    customerName: _defaultFullName,
-                    restaurantName: "Vlog Store",
-                    restaurantAddress: _defaultAddress,
-                    orderDate: DateTime.now(),
-                    savings: 0.0, // You can calculate savings based on promotions
-                    deliveryDate: _selectedDeliveryDate,
-                    deliveryTimeSlot: _selectedDeliveryTime,
-                    orderItems: savedItems,
-                    orderSubtotal: savedSubtotal,
+              if (orderId.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Order ID : $orderId',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-              );
-              // Clear cart after navigation
-              cart.clearCart();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [primaryColor, primaryColorLight],
+              ],
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => DeliveryTrackingPage(orderId: orderId.isNotEmpty ? orderId : null),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text('Track Order'),
                 ),
-                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                'View Receipt',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => MainScreen(token: null),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    side: BorderSide(color: primaryColor, width: 2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Back to Home'),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -509,25 +613,25 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                             _buildDetailRow(
                               icon: Icons.person_outline,
                               label: 'Full Name',
-                              value: _defaultFullName,
+                              value: _fullName,
                             ),
                             const SizedBox(height: 16),
                             _buildDetailRow(
                               icon: Icons.phone_outlined,
                               label: 'Phone Number',
-                              value: _defaultPhone,
+                              value: _phone,
                             ),
                             const SizedBox(height: 16),
                             _buildDetailRow(
                               icon: Icons.home_outlined,
                               label: 'Address',
-                              value: _defaultAddress,
+                              value: _address,
                             ),
                             const SizedBox(height: 16),
                             _buildDetailRow(
                               icon: Icons.location_city_outlined,
                               label: 'City',
-                              value: _defaultCity,
+                              value: _city,
                             ),
                           ],
                         ),

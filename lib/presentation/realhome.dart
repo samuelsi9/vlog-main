@@ -770,60 +770,57 @@ class _RealhomeState extends State<Realhome> {
                                             ),
                                           ),
                                         ),
-                                      // Wishlist button
+                                      // Wishlist button (uses product.id for API add/remove)
                                       Positioned(
                                         top: 8,
                                         right: 8,
                                         child: Consumer<WishlistService>(
                                           builder: (context, wishlistService, child) {
                                             final isInWishlist = wishlistService
-                                                .isInWishlist(eCommerceItems);
+                                                .isInWishlist(product);
                                             return InkWell(
-                                              onTap: () {
-                                                wishlistService.toggleWishlist(
-                                                  eCommerceItems,
-                                                );
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      isInWishlist
-                                                          ? "${eCommerceItems.name} removed from wishlist"
-                                                          : "${eCommerceItems.name} added to wishlist",
-                                                    ),
-                                                    duration: const Duration(
-                                                      seconds: 1,
-                                                    ),
-                                                    backgroundColor:
-                                                        primaryColor,
-                                                    behavior: SnackBarBehavior
-                                                        .floating,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                );
+                                              onTap: () async {
+                                                try {
+                                                  await wishlistService.toggleWishlist(product);
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          isInWishlist
+                                                              ? "${product.name} removed from wishlist"
+                                                              : "${product.name} added to wishlist",
+                                                        ),
+                                                        duration: const Duration(seconds: 1),
+                                                        backgroundColor: primaryColor,
+                                                        behavior: SnackBarBehavior.floating,
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text('Wishlist: ${e.toString()}'),
+                                                        backgroundColor: Colors.red,
+                                                        behavior: SnackBarBehavior.floating,
+                                                      ),
+                                                    );
+                                                  }
+                                                }
                                               },
                                               child: Container(
-                                                padding: const EdgeInsets.all(
-                                                  6,
-                                                ),
+                                                padding: const EdgeInsets.all(6),
                                                 decoration: BoxDecoration(
                                                   color: Colors.white,
                                                   shape: BoxShape.circle,
                                                   boxShadow: [
                                                     BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.1),
+                                                      color: Colors.black.withOpacity(0.1),
                                                       blurRadius: 4,
-                                                      offset: const Offset(
-                                                        0,
-                                                        2,
-                                                      ),
+                                                      offset: const Offset(0, 2),
                                                     ),
                                                   ],
                                                 ),

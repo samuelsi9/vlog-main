@@ -85,9 +85,10 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
       );
       return;
     }
+    final selectedAddress = _addresses.firstWhere((a) => a.id == _selectedId);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => const CheckoutConfirmationPage(),
+        builder: (_) => CheckoutConfirmationPage(selectedAddress: selectedAddress),
       ),
     );
   }

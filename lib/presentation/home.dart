@@ -7,7 +7,6 @@ import 'package:vlog/presentation/screen/search_page.dart';
 import 'package:vlog/presentation/screen/support_qa_page.dart';
 import 'package:vlog/Utils/delivery_tracking_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
-import 'package:vlog/presentation/addressess/addresses.dart';
 
 class MainScreen extends StatefulWidget {
   final String? token;

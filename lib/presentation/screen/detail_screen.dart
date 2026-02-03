@@ -257,7 +257,8 @@ class _DetailState extends State<Detail> {
         actions: [
           Consumer<WishlistService>(
             builder: (context, wishlistService, child) {
-              final isInWishlist = wishlistService.isInWishlist(currentProduct);
+              final productId = widget.productId ?? _productDetail?.id;
+              final isInWishlist = wishlistService.isInWishlist(productId ?? 0);
               return Container(
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
@@ -276,20 +277,35 @@ class _DetailState extends State<Detail> {
                     isInWishlist ? Icons.favorite : Icons.favorite_border,
                     color: isInWishlist ? Colors.red : Colors.black,
                   ),
-                  onPressed: () {
-                    wishlistService.toggleWishlist(currentProduct);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          isInWishlist
-                              ? "${currentProduct.name} removed from wishlist"
-                              : "${currentProduct.name} added to wishlist",
-                        ),
-                        duration: const Duration(seconds: 1),
-                        backgroundColor: primaryColor,
-                      ),
-                    );
-                  },
+                  onPressed: productId == null
+                      ? null
+                      : () async {
+                          try {
+                            await wishlistService.toggleWishlist(productId);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isInWishlist
+                                        ? "${currentProduct.name} removed from wishlist"
+                                        : "${currentProduct.name} added to wishlist",
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                  backgroundColor: primaryColor,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Wishlist: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
                 ),
               );
             },

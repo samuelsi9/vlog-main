@@ -185,7 +185,7 @@ class _AddressesState extends State<Addresses> {
                 subtitle: const Text('Use as default delivery address'),
                 value: isDefault,
                 onChanged: (value) => setState(() => isDefault = value),
-                activeColor: _purplePrimary,
+                activeThumbColor: _purplePrimary,
               ),
               const SizedBox(height: 28),
               SizedBox(
