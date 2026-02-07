@@ -1,12 +1,26 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Models/order_history_model.dart';
 import 'single_order_history_page.dart';
 
+/// Poll every 15 seconds so order list updates in real time.
+const Duration _orderHistoryPollInterval = Duration(seconds: 15);
+
 const Color _tabSelected = Color(0xFF4CAF50); // green when selected
-const Color _statusInProgress = Color(0xFFFFC107); // yellow
-const Color _statusCompleted = Color(0xFFE91E8C); // pink/purple
-const Color _statusCanceled = Color(0xFFE57373); // red/salmon
+// Distinct colors per status (text and background)
+const Color _statusPendingBg = Color(0xFFFFF3E0);      // orange tint
+const Color _statusPendingText = Color(0xFFE65100);
+const Color _statusConfirmedBg = Color(0xFFE3F2FD);    // blue tint
+const Color _statusConfirmedText = Color(0xFF1565C0);
+const Color _statusPreparingBg = Color(0xFFFFF8E1);    // amber tint
+const Color _statusPreparingText = Color(0xFFF57C00);
+const Color _statusShippedBg = Color(0xFFE8F5E9);      // light green
+const Color _statusShippedText = Color(0xFF2E7D32);
+const Color _statusDeliveredBg = Color(0xFFE8F5E9);   // green
+const Color _statusDeliveredText = Color(0xFF1B5E20);
+const Color _statusCanceledBg = Color(0xFFFFEBEE);     // red tint
+const Color _statusCanceledText = Color(0xFFC62828);
 
 class OrdersHistoryPage extends StatefulWidget {
   const OrdersHistoryPage({super.key});
@@ -21,10 +35,40 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
   bool _loading = true;
   String? _error;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _loadOrders();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_orderHistoryPollInterval, (_) {
+      if (!mounted) return;
+      _refreshOrders();
+    });
+  }
+
+  /// Silent refresh for polling – no loading overlay, just update list.
+  Future<void> _refreshOrders() async {
+    try {
+      final auth = AuthService();
+      final list = await auth.getAllOrderHistory();
+      if (!mounted) return;
+      setState(() => _orders = list);
+    } catch (_) {
+      // Keep previous data on poll error
+    }
   }
 
   Future<void> _loadOrders() async {
@@ -62,16 +106,49 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
     }
   }
 
+  /// Show the real status from the API (e.g. pending, confirmed, delivered).
   String _statusDisplay(AllOrderHistoryModel order) {
-    if (order.isDelivered) return 'Completed';
-    if (order.isCanceled) return 'Canceled';
-    return 'In Progress';
+    final s = order.status.toLowerCase();
+    switch (s) {
+      case 'delivered':
+      case 'completed':
+        return 'Delivered';
+      case 'canceled':
+      case 'cancelled':
+      case 'cancel':
+        return 'Canceled';
+      case 'out_for_delivery':
+      case 'shipped':
+        return 'Shipped';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'processing':
+      case 'preparing':
+        return 'Preparing';
+      case 'pending':
+      default:
+        return 'Pending';
+    }
   }
 
   Color _statusColor(AllOrderHistoryModel order) {
-    if (order.isDelivered) return _statusCompleted;
-    if (order.isCanceled) return _statusCanceled;
-    return _statusInProgress;
+    final s = order.status.toLowerCase();
+    if (s == 'delivered' || s == 'completed') return _statusDeliveredText;
+    if (s == 'canceled' || s == 'cancelled' || s == 'cancel') return _statusCanceledText;
+    if (s == 'out_for_delivery' || s == 'shipped') return _statusShippedText;
+    if (s == 'confirmed') return _statusConfirmedText;
+    if (s == 'processing' || s == 'preparing') return _statusPreparingText;
+    return _statusPendingText;
+  }
+
+  Color _statusBackgroundColor(AllOrderHistoryModel order) {
+    final s = order.status.toLowerCase();
+    if (s == 'delivered' || s == 'completed') return _statusDeliveredBg;
+    if (s == 'canceled' || s == 'cancelled' || s == 'cancel') return _statusCanceledBg;
+    if (s == 'out_for_delivery' || s == 'shipped') return _statusShippedBg;
+    if (s == 'confirmed') return _statusConfirmedBg;
+    if (s == 'processing' || s == 'preparing') return _statusPreparingBg;
+    return _statusPendingBg;
   }
 
   String _formatCreatedAt(String createdAt) {
@@ -204,7 +281,8 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
   }
 
   Widget _buildOrderCard(AllOrderHistoryModel order) {
-    final statusColor = _statusColor(order);
+    final statusBgColor = _statusBackgroundColor(order);
+    final statusTextColor = _statusColor(order);
     final statusLabel = _statusDisplay(order);
 
     return Container(
@@ -238,11 +316,11 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Status tag
+                // Status tag – different background and text color per status
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.25),
+                    color: statusBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -250,7 +328,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: statusColor,
+                      color: statusTextColor,
                     ),
                   ),
                 ),

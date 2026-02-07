@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/presentation/home.dart';
-
+import 'package:vlog/presentation/addressess/userLocation.dart';
 const Color _purplePrimary = Color(0xFF7C4DFF);
 
 class Addresses extends StatefulWidget {
@@ -17,10 +17,11 @@ class _AddressesState extends State<Addresses> {
   final buildingNumberController = TextEditingController();
   final apartmentNumberController = TextEditingController();
   final cityController = TextEditingController();
-  final latitudeController = TextEditingController();
-  final longitudeController = TextEditingController();
   bool isDefault = false;
   bool _isLoading = false;
+  bool _isGettingLocation = false;
+  double? _currentLat;
+  double? _currentLng;
 
   @override
   void dispose() {
@@ -28,8 +29,6 @@ class _AddressesState extends State<Addresses> {
     buildingNumberController.dispose();
     apartmentNumberController.dispose();
     cityController.dispose();
-    latitudeController.dispose();
-    longitudeController.dispose();
     super.dispose();
   }
 
@@ -38,37 +37,29 @@ class _AddressesState extends State<Addresses> {
     return null;
   }
 
-  String? _validateLatitude(String? value) {
-    if (value == null || value.trim().isEmpty) return 'latitude is required';
-    final v = double.tryParse(value.trim());
-    if (v == null) return 'Enter a valid number';
-    if (v < -90 || v > 90) return 'Must be between -90 and 90';
-    return null;
-  }
-
-  String? _validateLongitude(String? value) {
-    if (value == null || value.trim().isEmpty) return 'longitude is required';
-    final v = double.tryParse(value.trim());
-    if (v == null) return 'Enter a valid number';
-    if (v < -180 || v > 180) return 'Must be between -180 and 180';
-    return null;
-  }
-
   Future<void> _saveAddress() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_currentLat == null || _currentLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please use "Use current location" to set your position for delivery.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      final lat = double.parse(latitudeController.text.trim());
-      final lng = double.parse(longitudeController.text.trim());
       final auth = AuthService();
       await auth.createAddress(
         street: streetController.text.trim(),
         buildingNumber: buildingNumberController.text.trim(),
         apartmentNumber: apartmentNumberController.text.trim(),
         city: cityController.text.trim(),
-        latitude: lat,
-        longitude: lng,
+        latitude: _currentLat!,
+        longitude: _currentLng!,
         isDefault: isDefault,
       );
       if (!mounted) return;
@@ -107,9 +98,49 @@ class _AddressesState extends State<Addresses> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isGettingLocation = true);
+    try {
+      final position = await getUserLocation();
+      if (!mounted) return;
+      setState(() {
+        _currentLat = position.latitude;
+        _currentLng = position.longitude;
+        _isGettingLocation = false;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Current position set. You can now save your address.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGettingLocation = false);
+      String message = 'Could not get location.';
+      if (e.toString().contains('permission denied')) {
+        message = 'Location permission denied. Please allow access in Settings to use your current position.';
+      } else if (e.toString().contains('disabled')) {
+        message = 'Location services are off. Please turn on GPS to use your current position.';
+      } else {
+        message = e.toString().replaceAll('Exception: ', '');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+   
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -163,21 +194,104 @@ class _AddressesState extends State<Addresses> {
                 hint: 'e.g. Girne',
                 validator: (v) => _validateRequired(v, 'city'),
               ),
-              const SizedBox(height: 16),
-              _field(
-                controller: latitudeController,
-                label: 'latitude',
-                hint: 'e.g. -898.598761',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: _validateLatitude,
-              ),
-              const SizedBox(height: 16),
-              _field(
-                controller: longitudeController,
-                label: 'longitude',
-                hint: 'e.g. -968.598761',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: _validateLongitude,
+              const SizedBox(height: 24),
+              // Use current location – like real delivery apps
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (_currentLat != null && _currentLng != null)
+                      ? Colors.green.withOpacity(0.08)
+                      : Colors.grey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (_currentLat != null && _currentLng != null)
+                        ? Colors.green
+                        : Colors.grey.shade300,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _currentLat != null && _currentLng != null
+                              ? Icons.location_on
+                              : Icons.my_location,
+                          color: _currentLat != null && _currentLng != null
+                              ? Colors.green
+                              : _purplePrimary,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _currentLat != null && _currentLng != null
+                                ? 'Location set for delivery'
+                                : 'We need your position to deliver to this address.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_currentLat != null && _currentLng != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '${_currentLat!.toStringAsFixed(5)}, ${_currentLng!.toStringAsFixed(5)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isGettingLocation ? null : _useCurrentLocation,
+                        icon: _isGettingLocation
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(
+                                _currentLat != null && _currentLng != null
+                                    ? Icons.refresh
+                                    : Icons.my_location,
+                                size: 20,
+                                color: _purplePrimary,
+                              ),
+                        label: Text(
+                          _isGettingLocation
+                              ? 'Getting your position...'
+                              : (_currentLat != null && _currentLng != null
+                                  ? 'Update current location'
+                                  : 'Use current location'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _purplePrimary,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _purplePrimary,
+                          side: const BorderSide(color: _purplePrimary),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
               SwitchListTile(

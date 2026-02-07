@@ -10,7 +10,6 @@ import 'package:vlog/presentation/category_items.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/search_page.dart';
-import 'package:vlog/Data/notification_service.dart';
 // Smooth page transition utility
 class SmoothPageRoute<T> extends PageRouteBuilder<T> {
   final Widget child;
@@ -67,6 +66,8 @@ class _RealhomeState extends State<Realhome> {
   static const Color uberBlack = Color(0xFF000000);
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
   List<ProductModel> _products = [];
   List<ProductModel> _filteredProducts = [];
   List<CategoryModel> _categories = [];
@@ -75,14 +76,21 @@ class _RealhomeState extends State<Realhome> {
   bool _hasError = false;
   bool _hasCategoryError = false;
 
+  // Pagination: use current_page and last_page from API (Laravel paginate(10))
+  int _currentPage = 0;
+  int _lastPage = 1;
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_performSearch);
+    _scrollController.addListener(_onScroll);
     _fetchProducts();
     _fetchCategories();
   }
 
+  /// Initial load: fetch page 1 only.
   Future<void> _fetchProducts() async {
     setState(() {
       _isLoading = true;
@@ -92,25 +100,74 @@ class _RealhomeState extends State<Realhome> {
     try {
       final authService = AuthService();
       final response = await authService.getProducts(page: 1);
-      
+
       if (mounted) {
         setState(() {
-          _products = response.data;
-          _filteredProducts = response.data;
+          _products = List.from(response.data);
+          _applySearchFilter();
+          _currentPage = response.meta.currentPage;
+          _lastPage = response.meta.lastPage;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching products: $e');
-      // Use default products as fallback
       if (mounted) {
         setState(() {
           _products = getDefaultProducts();
-          _filteredProducts = getDefaultProducts();
+          _filteredProducts = List.from(_products);
+          _currentPage = 1;
+          _lastPage = 1;
           _isLoading = false;
           _hasError = true;
         });
       }
+    }
+  }
+
+  /// Append next page when user scrolls near bottom. Uses loading flag to prevent duplicate requests.
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || _currentPage >= _lastPage) return;
+    if (_searchController.text.isNotEmpty) return; // Only paginate full list, not search results
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final authService = AuthService();
+      final nextPage = _currentPage + 1;
+      final response = await authService.getProducts(page: nextPage);
+
+      if (!mounted) return;
+      setState(() {
+        _products.addAll(response.data);
+        _applySearchFilter();
+        _currentPage = response.meta.currentPage;
+        _lastPage = response.meta.lastPage;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading more products: $e');
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
+  }
+
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) _loadMore();
+  }
+
+  void _applySearchFilter() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      _filteredProducts = List.from(_products);
+    } else {
+      _filteredProducts = _products
+          .where((item) =>
+              item.name.toLowerCase().contains(query) ||
+              item.description.toLowerCase().contains(query))
+          .toList();
     }
   }
 
@@ -146,21 +203,12 @@ class _RealhomeState extends State<Realhome> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _performSearch() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredProducts = _products;
-      } else {
-        _filteredProducts = _products.where((item) {
-          return item.name.toLowerCase().contains(query) ||
-              item.description.toLowerCase().contains(query);
-        }).toList();
-      }
-    });
+    setState(_applySearchFilter);
   }
 
   // Helper method to convert ProductModel to itemModel for compatibility
@@ -435,6 +483,7 @@ class _RealhomeState extends State<Realhome> {
             // Main content
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -475,15 +524,7 @@ class _RealhomeState extends State<Realhome> {
                                           ),
                                           child: InkWell(
                                             onTap: () {
-                                              final filterItems = _products
-                                                  .where(
-                                                    (item) =>
-                                                        item.categoryId == categoryId,
-                                                  )
-                                                  .map((product) => _productToItemModel(product))
-                                                  .toList();
-
-                                  Navigator.push(
+                                              Navigator.push(
                                     context,
                                     SmoothPageRoute(
                                       child: CategoryItems(
@@ -648,9 +689,6 @@ class _RealhomeState extends State<Realhome> {
                         ],
                       ),
                     ),
-                  
-ElevatedButton(onPressed: () {
-  NotificationService().showNotification( "Test", "This is a test notification");}, child: Text("Show Notification")),
                     const SizedBox(height: 16),
 
                     // Loading indicator or Products grid
@@ -1079,6 +1117,23 @@ ElevatedButton(onPressed: () {
                         },
                       ),
                     ),
+
+                    // Load more footer: show indicator when fetching next page
+                    if (_filteredProducts.isNotEmpty && _currentPage < _lastPage && _isLoadingMore)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_filteredProducts.isNotEmpty && _currentPage >= _lastPage && _lastPage > 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: Text(
+                            "You've seen all products",
+                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 24),
 

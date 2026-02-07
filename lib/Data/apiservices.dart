@@ -8,6 +8,7 @@ import 'package:vlog/Models/cart_model.dart';
 import 'package:vlog/Models/delivery_address_model.dart';
 import 'package:vlog/Models/order_history_model.dart';
 import 'package:vlog/Models/wishlist_model.dart';
+import 'package:vlog/Models/notification_model.dart';
 
 class AuthService {
   final Dio _dio = Dio(
@@ -240,6 +241,21 @@ class AuthService {
       print('Unexpected error during get products: $e');
       rethrow;
     }
+  }
+
+  /// Fetches all products by requesting every page (API uses paginate(10)).
+  /// Returns a single list of all products.
+  Future<List<ProductModel>> getAllProducts() async {
+    final all = <ProductModel>[];
+    int page = 1;
+    int lastPage = 1;
+    do {
+      final response = await getProducts(page: page);
+      all.addAll(response.data);
+      lastPage = response.meta.lastPage;
+      page++;
+    } while (page <= lastPage);
+    return all;
   }
 
   /// Fetch products by category
@@ -568,6 +584,31 @@ class AuthService {
     }
   }
 
+  /// Cancels an order. POST http://127.0.0.1:8000/api/orders/{id}/cancel
+  /// Response: { "message": "Order cancelled successfully", "order": { "id": 3, "status": "cancelled" } }
+  /// Returns the response body so the UI can update local state immediately.
+  Future<Map<String, dynamic>> cancelOrder(String orderId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.post('/api/orders/$orderId/cancel');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to cancel order: ${response.statusCode}');
+      }
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      return {'message': 'Order cancelled successfully', 'order': {'id': int.tryParse(orderId), 'status': 'cancelled'}};
+    } on DioException catch (e) {
+      print('cancelOrder failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during cancelOrder: $e');
+      rethrow;
+    }
+  }
+
   // ================= WISHLIST API =================
 
   /// Fetches wishlist for the current user. GET /api/wishlist?page=1 with auth token.
@@ -828,7 +869,61 @@ class AuthService {
       rethrow;
     }
   }
-  
+
+  // ================= NOTIFICATIONS API =================
+
+  /// Fetches user notifications. GET /api/usernotify with auth token.
+  /// Response: { "notifications": [ { id, title, message, order_id, read_at, created_at } ] }
+  Future<List<NotificationModel>> viewNotification() async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        return [];
+      }
+      final response = await _dio.get('/api/usernotify');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is Map<String, dynamic> && data['notifications'] is List) {
+          final list = data['notifications'] as List;
+          return list
+              .map((e) => NotificationModel.fromMap(
+                  e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        return [];
+      }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 404) {
+        return [];
+      }
+      print('viewNotification failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during viewNotification: $e');
+      rethrow;
+    }
+  }
+
+  /// Marks a notification as read. POST /api/notify/{id}/read with auth token.
+  Future<void> markAsRead(String notificationId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        return;
+      }
+      final response = await _dio.post('/api/notify/$notificationId/read');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        print('markAsRead unexpected status: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('markAsRead failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during markAsRead: $e');
+      rethrow;
+    }
+  }
 
   /// Clear entire cart
   /// Returns empty CartModel

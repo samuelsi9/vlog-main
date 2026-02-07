@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:vlog/Data/apiservices.dart';
 
 class NotificationService {
  
@@ -45,13 +46,29 @@ NotificationDetails get notificationDetails => const NotificationDetails(
   iOS: DarwinNotificationDetails(),
 );
   Future<void> showNotification(String title, String body) async {
-  return notificationService.show(
-    id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-    title: title,
-    body: body,
-    notificationDetails: notificationDetails,
-  );
-}
+    return notificationService.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
+    );
+  }
+
+  /// Fetches notifications from API, shows each unread one locally, then marks it as read.
+  /// Call this when the app becomes active (e.g. on main screen load or resume).
+  Future<void> fetchShowAndMarkRead() async {
+    try {
+      final auth = AuthService();
+      final list = await auth.viewNotification();
+      for (final n in list) {
+        if (!n.isUnread) continue;
+        await showNotification(n.title, n.message);
+        await auth.markAsRead(n.id);
+      }
+    } catch (e) {
+      print('fetchShowAndMarkRead error: $e');
+    }
+  }
 }
 
 

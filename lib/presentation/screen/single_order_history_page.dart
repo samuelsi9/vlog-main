@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Models/order_history_model.dart';
+
+/// Poll every 15 seconds so single order updates in real time.
+const Duration _singleOrderPollInterval = Duration(seconds: 15);
 
 // Colors from the reference: white bg, dark grey text, orange status
 const Color _textPrimary = Color(0xFF333333);
@@ -23,10 +27,40 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
   bool _loading = true;
   String? _error;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _loadOrder();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_singleOrderPollInterval, (_) {
+      if (!mounted) return;
+      _refreshOrder();
+    });
+  }
+
+  /// Silent refresh for polling – no loading overlay, just update order.
+  Future<void> _refreshOrder() async {
+    try {
+      final auth = AuthService();
+      final order = await auth.getSingleOrderHistory(widget.orderId);
+      if (!mounted) return;
+      setState(() => _order = order);
+    } catch (_) {
+      // Keep previous data on poll error
+    }
   }
 
   Future<void> _loadOrder() async {
@@ -51,32 +85,39 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
     }
   }
 
+  /// Show the actual status from the API instead of "Ongoing".
   String _statusDisplay(String status) {
-    switch (status) {
+    final s = status.toLowerCase();
+    switch (s) {
       case 'delivered':
       case 'completed':
-        return 'Completed';
+        return 'Delivered';
       case 'canceled':
       case 'cancelled':
       case 'cancel':
         return 'Canceled';
+      case 'out_for_delivery':
+      case 'shipped':
+        return 'Shipped';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'processing':
+      case 'preparing':
+        return 'Preparing';
+      case 'pending':
       default:
-        return 'Ongoing';
+        return 'Pending';
     }
   }
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'delivered':
-      case 'completed':
-        return _statusCompleted;
-      case 'canceled':
-      case 'cancelled':
-      case 'cancel':
-        return _statusCanceled;
-      default:
-        return _statusOngoing;
-    }
+    final s = status.toLowerCase();
+    if (s == 'delivered' || s == 'completed') return _statusCompleted;
+    if (s == 'canceled' || s == 'cancelled' || s == 'cancel') return _statusCanceled;
+    if (s == 'out_for_delivery' || s == 'shipped') return const Color(0xFF2E7D32);
+    if (s == 'confirmed') return const Color(0xFF1565C0);
+    if (s == 'processing' || s == 'preparing') return const Color(0xFFF57C00);
+    return _statusOngoing;
   }
 
   String _formatOrderDate(String createdAt) {
@@ -91,7 +132,19 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
     }
   }
 
-  String _formatDeliveryDate(String? deliveryDate, String? deliveryTime) {
+  String _formatDeliveryDate(String? deliveryDate) {
+    if (deliveryDate == null || deliveryDate.isEmpty) return '—';
+    try {
+      final dt = DateTime.tryParse(deliveryDate);
+      if (dt != null) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+      }
+    } catch (_) {}
+    return deliveryDate;
+  }
+
+  String _formatDeliveryDateTime(String? deliveryDate, String? deliveryTime) {
     if (deliveryDate != null && deliveryDate.isNotEmpty) {
       try {
         final dt = DateTime.tryParse(deliveryDate);
@@ -299,7 +352,7 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Rows per item
+                          // Rows per item (all API item fields: product_id, name, image, price, quantity, subtotal)
                           ..._order!.items.map((item) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -308,15 +361,40 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                                 children: [
                                   Expanded(
                                     flex: 2,
-                                    child: Text(
-                                      item.name,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: _textPrimary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                    child: Row(
+                                      children: [
+                                        if (item.image != null && item.image!.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(right: 10),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                item.image!,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => Container(
+                                                  width: 48,
+                                                  height: 48,
+                                                  color: Colors.grey[200],
+                                                  child: const Icon(Icons.image_not_supported, size: 24, color: Colors.grey),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        Expanded(
+                                          child: Text(
+                                            item.name,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: _textPrimary,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   Expanded(
@@ -354,7 +432,32 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                           const SizedBox(height: 12),
                           const Divider(height: 1),
                           const SizedBox(height: 12),
-                          // DPH (delivery fee) row
+                          // Order subtotal (from API)
+                          if (_order!.subtotal != null && _order!.subtotal! > 0) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'SUBTOTAL',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _textLabel,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  '₺${_order!.subtotal!.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: _textPrimary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          // DPH / Delivery fee (from API delivery_fee)
                           if (_order!.deliveryFee != null && _order!.deliveryFee! > 0) ...[
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -379,7 +482,7 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                             ),
                             const SizedBox(height: 8),
                           ],
-                          // PRICE (+ DPH) total row
+                          // Total (from API total)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -392,7 +495,7 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                                 ),
                               ),
                               Text(
-                                '₺${_order!.effectiveTotal.toStringAsFixed(2)}',
+                                '₺${(_order!.total ?? _order!.effectiveTotal).toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -401,12 +504,60 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 20),
+                          // Delivery date (from API delivery_date)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'DELIVERY DATE',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _textLabel,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Text(
+                                _formatDeliveryDate(_order!.deliveryDate),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Delivery time (from API delivery_time)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'DELIVERY TIME',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _textLabel,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Text(
+                                _order!.deliveryTime ?? '—',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: _textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
                           // Delivery message
                           Center(
                             child: Text(
                               _order!.deliveryDate != null && _order!.deliveryDate!.isNotEmpty
-                                  ? 'Your order will be delivered by ${_formatDeliveryDate(_order!.deliveryDate, _order!.deliveryTime)}'
+                                  ? 'Your order will be delivered by ${_formatDeliveryDateTime(_order!.deliveryDate, _order!.deliveryTime)}'
                                   : _order!.deliveryTime != null && _order!.deliveryTime!.isNotEmpty
                                       ? 'Delivery time: ${_order!.deliveryTime}'
                                       : 'Your order will be delivered soon.',

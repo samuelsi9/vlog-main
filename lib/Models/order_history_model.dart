@@ -165,4 +165,18 @@ class SingleOrderHistoryModel {
 
   double get effectiveTotal => total ?? (subtotal ?? 0) + (deliveryFee ?? 0);
   double get effectiveSubtotal => subtotal ?? items.fold(0.0, (s, i) => s + i.subtotal);
+
+  SingleOrderHistoryModel copyWith({String? status}) {
+    return SingleOrderHistoryModel(
+      id: id,
+      status: status ?? this.status,
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      total: total,
+      deliveryDate: deliveryDate,
+      deliveryTime: deliveryTime,
+      createdAt: createdAt,
+      items: items,
+    );
+  }
 }

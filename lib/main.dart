@@ -16,11 +16,20 @@ import 'package:vlog/presentation/skeleton_loader.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:vlog/firebase_options.dart';
 import 'package:vlog/Data/notification_service.dart';
+import 'package:vlog/core/app_lifecycle_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   //await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   NotificationService().initNotification();
+
+  final lifecycleHandler = AppLifecycleHandler();
+  WidgetsBinding.instance.addObserver(lifecycleHandler);
+  Future.microtask(() {
+    lifecycleHandler.triggerNotificationCheck();
+    lifecycleHandler.startPolling();
+  });
+
   // Note: To enable Google/Apple authentication, you need to:
   // 1. Set up Firebase: flutter pub add firebase_core && flutterfire configure
   // 2. Initialize Firebase here: await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
