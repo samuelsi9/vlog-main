@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:vlog/Models/user_model.dart';
 import 'package:vlog/Models/model.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/profile_settings_page.dart';
@@ -29,6 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? _localProfileName;
   String? _localProfileImagePath;
+  String? _authUserName;
 
   @override
   void initState() {
@@ -38,9 +40,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadLocalProfile() async {
     final prefs = await SharedPreferences.getInstance();
+    String? authName;
+    final isLoggedIn = await StorageService.isLoggedIn();
+    if (isLoggedIn) {
+      final user = await StorageService.getUser();
+      if (user != null) {
+        final name = user['name']?.toString().trim();
+        final fullName = user['full_name']?.toString().trim();
+        final first = user['first_name']?.toString().trim() ?? '';
+        final last = user['last_name']?.toString().trim() ?? '';
+        if (name != null && name.isNotEmpty) {
+          authName = name;
+        } else if (fullName != null && fullName.isNotEmpty) {
+          authName = fullName;
+        } else if ('$first $last'.trim().isNotEmpty) {
+          authName = '$first $last'.trim();
+        }
+      }
+    }
+    if (!mounted) return;
     setState(() {
       _localProfileName = prefs.getString('profile_name');
       _localProfileImagePath = prefs.getString('profile_image_path');
+      _authUserName = authName;
     });
   }
 
@@ -60,7 +82,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_localProfileName != null && _localProfileName!.isNotEmpty) {
       return _localProfileName!;
     }
-    return widget.user?.name ?? "Guest User";
+    if (_authUserName != null && _authUserName!.isNotEmpty) {
+      return _authUserName!;
+    }
+    if (widget.user?.name != null && widget.user!.name.isNotEmpty) {
+      return widget.user!.name;
+    }
+    return "Guest User";
   }
 
   ImageProvider get _profileImage {

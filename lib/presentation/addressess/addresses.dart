@@ -61,6 +61,7 @@ class _AddressesState extends State<Addresses> {
         latitude: _currentLat!,
         longitude: _currentLng!,
         isDefault: isDefault,
+        addressType: 'Home',
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

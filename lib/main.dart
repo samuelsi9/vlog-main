@@ -13,13 +13,14 @@ import 'package:vlog/Utils/delivery_tracking_service.dart';
 import 'package:vlog/Utils/order_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/presentation/skeleton_loader.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:vlog/firebase_options.dart';
 import 'package:vlog/Data/notification_service.dart';
 import 'package:vlog/core/app_lifecycle_handler.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   //await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   NotificationService().initNotification();
 

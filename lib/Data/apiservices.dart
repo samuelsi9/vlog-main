@@ -9,6 +9,7 @@ import 'package:vlog/Models/delivery_address_model.dart';
 import 'package:vlog/Models/order_history_model.dart';
 import 'package:vlog/Models/wishlist_model.dart';
 import 'package:vlog/Models/notification_model.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   final Dio _dio = Dio(
@@ -375,7 +376,7 @@ class AuthService {
     bool isDefault = false,
     String? receiverName,
     String? addressType,
-    String? nearbyLandmark,
+   
   }) async {
     try {
       final token = await StorageService.getToken();
@@ -391,10 +392,10 @@ class AuthService {
         'latitude': latitude,
         'longitude': longitude,
         'is_default': isDefault,
+        'label': addressType ?? "Home",
       };
       if (receiverName != null && receiverName.isNotEmpty) data['receiver_name'] = receiverName;
       if (addressType != null && addressType.isNotEmpty) data['address_type'] = addressType;
-      if (nearbyLandmark != null && nearbyLandmark.isNotEmpty) data['nearby_landmark'] = nearbyLandmark;
 
       final response = await _dio.post(
         '/api/addresses',
@@ -478,6 +479,26 @@ class AuthService {
       rethrow;
     } catch (e) {
       print('Unexpected error during useAddress: $e');
+      rethrow;
+    }
+  }
+
+  /// Deletes an address. DELETE /api/addresses/{id}.
+  Future<void> deleteAddress(String id) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.delete('/api/addresses/$id');
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to delete address: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('deleteAddress failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Unexpected error during deleteAddress: $e');
       rethrow;
     }
   }
@@ -924,6 +945,99 @@ class AuthService {
       rethrow;
     }
   }
+  
+
+  /// POST token (Google id_token) to http://127.0.0.1:8001/api/googlelogin. Body: { "token": idToken }. Response same format as register. Prints to console.
+  static Future<Map<String, dynamic>> googleLogin(String idToken) async {
+    const String url = 'http://127.0.0.1:8002/api/googlelogin';
+    try {
+      final dio = Dio(BaseOptions(
+        headers: {'Accept': 'application/json'},
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ));
+      final response = await dio.post(
+        url,
+        data: {'token': idToken},
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data as Map<String, dynamic>;
+        print('========== Google Login API response ==========');
+        print('access_token: ${data['access_token']}');
+        print('token_type: ${data['token_type']}');
+        print('user: ${data['user']}');
+        print('Full response: $data');
+        print('================================================');
+        return data;
+      }
+      print('Google login unexpected status: ${response.statusCode}');
+      return response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : {};
+    } on DioException catch (e) {
+      print('Google login API failed: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      print('Google login API error: $e');
+      rethrow;
+    }
+  }
+
+  /// Google Sign-In: gets id_token, sends to backend, prints user info and API response in console.
+  static Future<void> signInWithGoogle() async {
+  try {
+    // Use WEB CLIENT ID here (NOT iOS client ID)
+    await GoogleSignIn.instance.initialize(
+      serverClientId: '626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com',
+    );
+
+    final GoogleSignInAccount user =
+        await GoogleSignIn.instance.authenticate();
+
+    final String? idToken = user.authentication.idToken;
+
+    print('========== Google Sign-In ==========');
+    print('Name:  ${user.displayName}');
+    print('Email: ${user.email}');
+    print('Id:    ${user.id}');
+    print('Photo: ${user.photoUrl}');
+    print('ID Token (full, as sent):');
+    final String tokenStr = idToken ?? '(null)';
+    const int chunkSize = 200;
+    for (int i = 0; i < tokenStr.length; i += chunkSize) {
+    final end = (i + chunkSize < tokenStr.length) ? i + chunkSize : tokenStr.length;
+     print(tokenStr.substring(i, end));
+    }
+    print('====================================');
+
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('ID Token is null');
+    }
+
+    final Map<String, dynamic> apiResponse = await googleLogin(idToken);
+    if (apiResponse.isNotEmpty) {
+      final accessToken = apiResponse['access_token'] as String?;
+      final tokenType = apiResponse['token_type'] as String? ?? 'Bearer';
+      final userData = apiResponse['user'] as Map<String, dynamic>?;
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await StorageService.saveToken(accessToken);
+        await StorageService.saveTokenType(tokenType);
+        if (userData != null) {
+          await StorageService.saveUser(userData);
+        }
+      }
+    }
+  } on GoogleSignInException catch (e) {
+    if (e.code == GoogleSignInExceptionCode.canceled) {
+      print('Google Sign-In canceled');
+    } else {
+      print('Google Sign-In error: $e');
+    }
+  } catch (e) {
+    print('Google Sign-In error: $e');
+    rethrow;
+  }
+}
 
   /// Clear entire cart
   /// Returns empty CartModel

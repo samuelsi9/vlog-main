@@ -474,9 +474,8 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
         latitude: 0.0,
         longitude: 0.0,
         isDefault: false,
-        receiverName: _receiverController.text.trim(),
+        receiverName: _receiverController.text.trim().isEmpty ? null : _receiverController.text.trim(),
         addressType: _addressType,
-        nearbyLandmark: _landmarkController.text.trim().isEmpty ? null : _landmarkController.text.trim(),
       );
       if (!mounted) return;
       final added = DeliveryAddressModel(

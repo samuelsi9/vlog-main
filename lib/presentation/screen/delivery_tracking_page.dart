@@ -115,7 +115,9 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
         }
       }
       if (toRemove.isNotEmpty) {
-        for (final id in toRemove) _cancelledAt.remove(id);
+        for (final id in toRemove) {
+          _cancelledAt.remove(id);
+        }
         setState(() => _orders.removeWhere((o) => toRemove.contains(o.id)));
       }
     }
@@ -156,7 +158,9 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
       setState(() {
         _orders = list;
         _loading = false;
-        for (final o in list) _markCancelledIfNeeded(o.id, o.status);
+        for (final o in list) {
+          _markCancelledIfNeeded(o.id, o.status);
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -175,7 +179,9 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
       if (!mounted) return;
       setState(() {
         _orders = list;
-        for (final o in list) _markCancelledIfNeeded(o.id, o.status);
+        for (final o in list) {
+          _markCancelledIfNeeded(o.id, o.status);
+        }
       });
     } catch (_) {
       // Keep previous data on poll error

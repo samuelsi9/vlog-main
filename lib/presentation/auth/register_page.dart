@@ -3,9 +3,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/presentation/addressess/addresses.dart';
+import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// Design colors: red & white (same as login page)
+const Color _primaryRed = Color(0xFFD32F2F);
+const Color _lightGrey = Color(0xFF9E9E9E);
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -14,17 +19,75 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends State<RegisterPage>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final firstNameController = TextEditingController();
   final lastNameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
-  
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  late AnimationController _textKoliagoController;
+  late Animation<double> _textKoliagoScale;
+  late AnimationController _pageController;
+  late Animation<double> _fadeKoliago;
+  late Animation<double> _slideTabs;
+  late Animation<double> _slideOr;
+  late Animation<double> _slideSocial;
+  late Animation<double> _slideForm;
+
+  @override
+  void initState() {
+    super.initState();
+    _textKoliagoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _textKoliagoScale = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _textKoliagoController, curve: Curves.easeInOut),
+    );
+    _pageController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..forward();
+    _fadeKoliago = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _pageController,
+        curve: const Interval(0.0, 0.2, curve: Curves.easeOut),
+      ),
+    );
+    _slideTabs = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _pageController,
+        curve: const Interval(0.1, 0.35, curve: Curves.elasticOut),
+      ),
+    );
+    _slideOr = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _pageController,
+        curve: const Interval(0.25, 0.45, curve: Curves.easeOut),
+      ),
+    );
+    _slideSocial = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _pageController,
+        curve: const Interval(0.35, 0.6, curve: Curves.easeOutBack),
+      ),
+    );
+    _slideForm = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _pageController,
+        curve: const Interval(0.45, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
+  }
 
   @override
   void dispose() {
+    _textKoliagoController.dispose();
+    _pageController.dispose();
     firstNameController.dispose();
     lastNameController.dispose();
     emailController.dispose();
@@ -35,24 +98,44 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _signUpWithGoogle() async {
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      const String iosClientId =
+          '262189303234-ff2c12r8mcfjhmh9gk3dk0k1fl9igs7e.apps.googleusercontent.com';
+      await GoogleSignIn.instance.initialize(clientId: iosClientId);
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
 
-      if (googleUser == null) {
+      final String? idToken = googleUser.authentication.idToken;
+      if (idToken == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google sign-in: no ID token')),
+        );
         return;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      String? accessToken;
+      try {
+        final authz = await googleUser.authorizationClient.authorizeScopes(
+          <String>[
+            'openid',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+          ],
+        );
+        accessToken = authz.accessToken;
+      } catch (_) {
+        // Firebase can work with idToken only
+      }
 
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        idToken: idToken,
+        accessToken: accessToken,
       );
 
-      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (userCredential.user != null) {
-        // Save user data
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', userCredential.user!.uid);
         await prefs.setString('auth_user', jsonEncode({
@@ -72,6 +155,15 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         );
       }
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        return; // User cancelled
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Google registration failed: ${e.description ?? e}')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -250,349 +342,399 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  InputDecoration _inputDecoration(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[300],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Center(
-            child: Form(
-              key: _formKey,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20.0),
+          child: Column(
+            children: [
+              // Top red section: logo + app name (3D effect)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                decoration: BoxDecoration(
+                  color: _primaryRed,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    //logo
-                    const Icon(Icons.lock, size: 80),
-                    const SizedBox(height: 10),
-
-                    // welcome message
-                    const Text(
-                      'Create your account',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Fill in the details to get started',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // First Name
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: TextFormField(
-                        controller: firstNameController,
-                        decoration: InputDecoration(
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.blue),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          fillColor: Colors.grey[200],
-                          filled: true,
-                          hintText: 'First Name',
-                          prefixIcon: const Icon(Icons.person),
-                        ),
-                        validator: _validateFirstName,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Last Name
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: TextFormField(
-                        controller: lastNameController,
-                        decoration: InputDecoration(
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.blue),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          fillColor: Colors.grey[200],
-                          filled: true,
-                          hintText: 'Last Name',
-                          prefixIcon: const Icon(Icons.person_outline),
-                        ),
-                        validator: _validateLastName,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Email
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: TextFormField(
-                        controller: emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.blue),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          fillColor: Colors.grey[200],
-                          filled: true,
-                          hintText: 'Email',
-                          prefixIcon: const Icon(Icons.email),
-                        ),
-                        validator: _validateEmail,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Password
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: TextFormField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.blue),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          fillColor: Colors.grey[200],
-                          filled: true,
-                          hintText: 'Password',
-                          prefixIcon: const Icon(Icons.lock),
-                        ),
-                        validator: _validatePassword,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Confirm Password
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: TextFormField(
-                        controller: confirmPasswordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.blue),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          fillColor: Colors.grey[200],
-                          filled: true,
-                          hintText: 'Confirm Password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                        ),
-                        validator: _validateConfirmPassword,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // // Role
-                    // Padding(
-                    //   padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                    //   child: TextFormField(
-                    //     controller: roleController,
-                    //     decoration: InputDecoration(
-                    //       enabledBorder: OutlineInputBorder(
-                    //         borderSide: const BorderSide(color: Colors.grey),
-                    //         borderRadius: BorderRadius.circular(8),
-                    //       ),
-                    //       focusedBorder: OutlineInputBorder(
-                    //         borderSide: const BorderSide(color: Colors.blue),
-                    //         borderRadius: BorderRadius.circular(8),
-                    //       ),
-                    //       errorBorder: OutlineInputBorder(
-                    //         borderSide: const BorderSide(color: Colors.red),
-                    //         borderRadius: BorderRadius.circular(8),
-                    //       ),
-                    //       focusedErrorBorder: OutlineInputBorder(
-                    //         borderSide: const BorderSide(color: Colors.red),
-                    //         borderRadius: BorderRadius.circular(8),
-                    //       ),
-                    //       fillColor: Colors.grey[200],
-                    //       filled: true,
-                    //       hintText: 'Role (buyer/seller)',
-                    //       prefixIcon: const Icon(Icons.work),
-                    //     ),
-                    //     validator: _validateRole,
-                    //   ),
-                    // ),
-                    const SizedBox(height: 20),
-
-                    // Register Button
-                    GestureDetector(
-                      onTap: signUserUp,
-                      child: Container(
-                        padding: const EdgeInsets.all(25),
-                        margin: const EdgeInsets.symmetric(horizontal: 25),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            "Sign Up",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                    FadeTransition(
+                      opacity: _fadeKoliago,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.5),
+                          end: Offset.zero,
+                        ).animate(_fadeKoliago),
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.5, end: 1.0).animate(
+                            CurvedAnimation(
+                              parent: _pageController,
+                              curve: const Interval(0.0, 0.25, curve: Curves.easeOutBack),
                             ),
                           ),
+                          child: AnimatedBuilder(
+                            animation: _textKoliagoScale,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: _textKoliagoScale.value,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 28,
+                                    vertical: 18,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.9),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.08),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 6),
+                                        spreadRadius: 0,
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.04),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                        spreadRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Image.asset(
+                                    'assets/koliago_logo.png',
+                                    height: 64,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
+                  ],
+                ),
+              ),
 
-                    // Continue with
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Divider(
-                              thickness: 0.5,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10.0,
-                            ),
-                            child: Text(
-                              'Or continue with',
-                              style: TextStyle(color: Colors.grey[700]),
-                            ),
-                          ),
-                          Expanded(
-                            child: Divider(
-                              thickness: 0.5,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              // Login / SignUp tabs (SignUp selected)
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.5),
+                  end: Offset.zero,
+                ).animate(_slideTabs),
+                child: FadeTransition(
+                  opacity: _slideTabs,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                    child: Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _signUpWithGoogle,
-                            icon: const Icon(Icons.g_mobiledata),
-                            label: const Text('Google'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                          child: _RegisterTabChip(
+                            label: 'Login',
+                        selected: false,
+                        onTap: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LoginPage(),
+                          ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _signUpWithApple,
-                            icon: const Icon(Icons.apple),
-                            label: const Text('Apple'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          child: _RegisterTabChip(
+                            label: 'SignUp',
+                            selected: true,
+                            onTap: () {},
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              FadeTransition(
+                opacity: _slideOr,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Text(
+                    'or',
+                    style: TextStyle(color: _lightGrey, fontSize: 15),
+                  ),
+                ),
+              ),
+
+              // Social icons
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.3),
+                  end: Offset.zero,
+                ).animate(_slideSocial),
+                child: FadeTransition(
+                  opacity: _slideSocial,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _RegisterSocialIcon(
+                        icon: Icons.g_mobiledata,
+                        color: const Color(0xFF4285F4),
+                        onTap: _signUpWithGoogle,
+                      ),
+                      const SizedBox(width: 20),
+                      _RegisterSocialIcon(
+                        icon: Icons.apple,
+                        color: Colors.black,
+                        onTap: _signUpWithApple,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Form section
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.2),
+                  end: Offset.zero,
+                ).animate(_slideForm),
+                child: FadeTransition(
+                  opacity: _slideForm,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: firstNameController,
+                            decoration: _inputDecoration('First Name'),
+                            validator: _validateFirstName,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: lastNameController,
+                            decoration: _inputDecoration('Last Name'),
+                            validator: _validateLastName,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: _inputDecoration('Enter Email'),
+                            validator: _validateEmail,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: _inputDecoration('Enter Password').copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: _lightGrey,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _obscurePassword = !_obscurePassword),
+                              ),
+                            ),
+                            validator: _validatePassword,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: confirmPasswordController,
+                            obscureText: _obscureConfirmPassword,
+                            decoration: _inputDecoration('Confirm Password').copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: _lightGrey,
+                                ),
+                                onPressed: () => setState(
+                                    () => _obscureConfirmPassword =
+                                        !_obscureConfirmPassword),
+                              ),
+                            ),
+                            validator: _validateConfirmPassword,
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            "Already have an account? ",
+                            style: TextStyle(color: _lightGrey, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            onTap: () => Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginPage(),
+                              ),
+                            ),
+                            child: Text(
+                              'Sign in',
+                              style: TextStyle(
+                                color: _primaryRed,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 24),
+                          Transform(
+                            transform: Matrix4.identity()
+                              ..setEntry(3, 2, 0.001)
+                              ..rotateX(-0.02),
+                            alignment: Alignment.center,
+                            child: SizedBox(
+                              height: 54,
+                              child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primaryRed,
+                              foregroundColor: Colors.white,
+                              elevation: 8,
+                              shadowColor: Colors.black.withOpacity(0.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                                onPressed: signUserUp,
+                                child: const Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 30),
-
-                    // Already have account
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Already have an account?'),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context);
-                          },
-                          child: Text(
-                            'Login',
-                            style: TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegisterTabChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RegisterTabChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform(
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.002)
+        ..rotateX(selected ? 0 : -0.02),
+      alignment: Alignment.center,
+      child: Material(
+        color: selected ? _primaryRed : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        elevation: selected ? 4 : 6,
+        shadowColor: Colors.black.withOpacity(0.3),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : _primaryRed,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegisterSocialIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RegisterSocialIcon({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform(
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.002)
+        ..rotateY(-0.05),
+      alignment: Alignment.center,
+      child: Material(
+        color: Colors.white,
+        shape: const CircleBorder(),
+        elevation: 6,
+        shadowColor: Colors.black.withOpacity(0.35),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            child: Icon(icon, size: 28, color: color),
           ),
         ),
       ),

@@ -27,6 +27,36 @@ class DeliveryAddressModel {
     this.isDefault = false,
   });
 
+  DeliveryAddressModel copyWith({
+    String? id,
+    String? userId,
+    String? label,
+    String? street,
+    String? city,
+    String? postalCode,
+    String? country,
+    double? latitude,
+    double? longitude,
+    String? instructions,
+    String? phone,
+    bool? isDefault,
+  }) {
+    return DeliveryAddressModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      label: label ?? this.label,
+      street: street ?? this.street,
+      city: city ?? this.city,
+      postalCode: postalCode ?? this.postalCode,
+      country: country ?? this.country,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      instructions: instructions ?? this.instructions,
+      phone: phone ?? this.phone,
+      isDefault: isDefault ?? this.isDefault,
+    );
+  }
+
   String get fullAddress => '$street, ${postalCode.isNotEmpty ? "$postalCode " : ""}$city${country.isNotEmpty ? ", $country" : ""}'.trim();
 
   factory DeliveryAddressModel.fromMap(Map<String, dynamic> map) {
