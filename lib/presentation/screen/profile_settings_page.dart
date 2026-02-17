@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:vlog/Data/apiservices.dart';
 
 class ProfileSettingsPage extends StatefulWidget {
   final String? currentName;
   final String? currentImage;
-  final Function(String name, String? imagePath) onSave;
+  final void Function(String name, String? imagePath, String? avatarUrl) onSave;
 
   const ProfileSettingsPage({
     super.key,
@@ -62,6 +63,29 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     }
   }
 
+  ImageProvider _buildCurrentImageProvider() {
+    if (_selectedImagePath != null) {
+      return FileImage(File(_selectedImagePath!));
+    }
+    final current = widget.currentImage;
+    if (current == null || current.isEmpty) {
+      return const AssetImage('assets/man.jpg');
+    }
+    if (current.startsWith('http://') || current.startsWith('https://')) {
+      return NetworkImage(current);
+    }
+    if (current.startsWith('assets/')) {
+      return const AssetImage('assets/man.jpg');
+    }
+    try {
+      final file = File(current);
+      if (file.existsSync()) {
+        return FileImage(file);
+      }
+    } catch (_) {}
+    return const AssetImage('assets/man.jpg');
+  }
+
   void _showImageSourceDialog() {
     showDialog(
       context: context,
@@ -94,7 +118,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     );
   }
 
-  void _saveProfile() {
+  Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,23 +130,39 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    // Simulate save operation
-    Future.delayed(const Duration(milliseconds: 500), () {
-      widget.onSave(name, _selectedImagePath);
-      if (mounted) {
-        Navigator.pop(context);
+    String? avatarUrl;
+    if (_selectedImagePath != null) {
+      try {
+        final file = File(_selectedImagePath!);
+        final auth = AuthService();
+        final result = await auth.uploadAvatar(file);
+        avatarUrl = result['avatar']?.toString();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Profile updated successfully!"),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
           ),
         );
+        return;
       }
-    });
+    }
+
+    if (!mounted) return;
+    widget.onSave(name, _selectedImagePath, avatarUrl);
+    setState(() => _isLoading = false);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Profile updated successfully!"),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
@@ -172,13 +212,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: _selectedImagePath != null
-                        ? FileImage(File(_selectedImagePath!))
-                        : (widget.currentImage != null &&
-                              widget.currentImage!.isNotEmpty &&
-                              !widget.currentImage!.startsWith('assets/'))
-                        ? NetworkImage(widget.currentImage!)
-                        : const AssetImage('assets/man.jpg') as ImageProvider,
+                    backgroundImage: _buildCurrentImageProvider(),
                   ),
                   Positioned(
                     bottom: 0,

@@ -1,4 +1,6 @@
 // services/auth_service.dart
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/product_model.dart';
@@ -26,6 +28,12 @@ class AuthService {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          // Do not attach token for public endpoints (no auth required)
+          final path = options.uri.path;
+          if (path.contains('users/checkEmail') || path.contains('users/reset-password')) {
+            return handler.next(options);
+          }
+
           // Get token from secure storage
           final token = await StorageService.getToken();
           final tokenType = await StorageService.getTokenType();
@@ -155,43 +163,65 @@ class AuthService {
     return '${_dio.options.baseUrl}/api/auth/$provider';
   }
 
-  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+  /// Checks if the given email exists. Returns map with [exists] (bool) and [message] (String).
+  /// Call POST /api/users/checkEmail with body { "email": email }.
+  /// Never throws: on network/API error returns {} so caller can show a message.
+  Future<Map<String, dynamic>> checkEmail({required String email}) async {
     try {
       final response = await _dio.post(
-        'api/auth/forgotpassword',
+        '/api/checkEmail',
         data: {'email': email},
       );
-      if (response.statusCode == 200) {
-        return response.data as Map<String, dynamic>;
+      print('checkEmail statusCode: ${response.statusCode}, data: ${response.data}');
+      if (response.statusCode == 200 && response.data != null) {
+        final raw = response.data;
+        if (raw is Map<String, dynamic>) {
+          return raw;
+        }
+        if (raw is Map) {
+          return Map<String, dynamic>.from(raw);
+        }
+        print('checkEmail unexpected type: ${raw.runtimeType}');
       }
     } on DioException catch (e) {
-      print('Forgot password failed: ${e.response?.data}');
-      rethrow;
-    } catch (e) {
-      print('Unexpected error during forgot password: $e');
-      rethrow;
+      print('Check email failed: ${e.response?.data}');
+      return {};
+    } catch (e, stack) {
+      print('Unexpected error during check email: $e');
+      print('$stack');
+      return {};
     }
     return {};
   }
 
+  /// Reset password with email (no token). POST api/users/reset-password.
+  /// Body: email, password, password_confirmation.
+  /// Success response: { "message": "Password updated successfully" }.
   Future<Map<String, dynamic>> resetPassword({
-    required String resetToken,
+    required String email,
     required String password,
-    required String passwordConfirm,
+    required String passwordConfirmation,
   }) async {
     try {
-      final response = await _dio.put(
-        'api/auth/resetpassword/$resetToken',
-        data: {'password': password, 'passwordConfirm': passwordConfirm},
+      final response = await _dio.post(
+        '/api/reset-password',
+        data: {
+          'email': email,
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        },
       );
-      if (response.statusCode == 200) {
-        return response.data as Map<String, dynamic>; // expects token + user
+      if (response.statusCode == 200 && response.data != null) {
+        final raw = response.data;
+        if (raw is Map<String, dynamic>) return raw;
+        if (raw is Map) return Map<String, dynamic>.from(raw);
       }
     } on DioException catch (e) {
       print('Reset password failed: ${e.response?.data}');
       rethrow;
-    } catch (e) {
+    } catch (e, stack) {
       print('Unexpected error during reset password: $e');
+      print('$stack');
       rethrow;
     }
     return {};
@@ -216,6 +246,63 @@ class AuthService {
       await StorageService.clearAll();
       print('Unexpected error during logout: $e');
       rethrow;
+    }
+  }
+
+  /// Max avatar file size in bytes (2048 KB = 2 MB).
+  static const int _maxAvatarSizeBytes = 2048 * 1024;
+
+  /// Upload user avatar. POST /api/users/me/avatar with auth token.
+  /// [file] - Image file (must be <= 2048 KB).
+  /// Returns { "message": "Avatar updated successfully", "avatar": "https://..." }.
+  /// Throws if file size > 2048 KB with message about allowed size.
+  Future<Map<String, dynamic>> uploadAvatar(File file) async {
+    final token = await StorageService.getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('No authentication token found. Please log in first.');
+    }
+
+    final fileLength = await file.length();
+    if (fileLength > _maxAvatarSizeBytes) {
+      throw Exception(
+        'Image size must be 2048 KB or less. Your image is ${(fileLength / 1024).toStringAsFixed(0)} KB.',
+      );
+    }
+
+    try {
+      final filename = file.path.split(RegExp(r'[/\\]')).last;
+      if (filename.isEmpty) {
+        throw Exception('Invalid file path');
+      }
+
+      final formData = FormData.fromMap({
+        'avatar': await MultipartFile.fromFile(
+          file.path,
+          filename: filename,
+        ),
+      });
+
+      final response = await _dio.post(
+        '/api/users/me/avatar',
+        data: formData,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+        return {'message': 'Avatar updated successfully', 'avatar': null};
+      }
+      throw Exception('Failed to upload avatar: ${response.statusCode}');
+    } on DioException catch (e) {
+      final msg = e.response?.data is Map
+          ? (e.response!.data as Map)['message']?.toString()
+          : null;
+      throw Exception(msg ?? e.message ?? 'Failed to upload avatar');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Failed to upload avatar: $e');
     }
   }
 
@@ -949,7 +1036,7 @@ class AuthService {
 
   /// POST token (Google id_token) to http://127.0.0.1:8001/api/googlelogin. Body: { "token": idToken }. Response same format as register. Prints to console.
   static Future<Map<String, dynamic>> googleLogin(String idToken) async {
-    const String url = 'http://127.0.0.1:8002/api/googlelogin';
+    const String url = 'http://127.0.0.1:8000/api/googlelogin';
     try {
       final dio = Dio(BaseOptions(
         headers: {'Accept': 'application/json'},

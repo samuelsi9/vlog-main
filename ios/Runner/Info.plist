@@ -2,23 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleURLTypes</key>
-<array>
-	<dict>
-		<key>CFBundleTypeRole</key>
-		<string>Editor</string>
-		<key>CFBundleURLSchemes</key>
-		<array>
-			<string>com.googleusercontent.apps.626509355552-bmk5mda099te3il0c00h3g8vklv5ru31</string>
-		</array>
-	</dict>
-</array>
-    <key>NSLocationUsageDescription</key>
-    <string>We need your location to deliver your order</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>We need your location to deliver your order</string>
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>We need your location to deliver your order</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vlog</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.626509355552-bmk5mda099te3il0c00h3g8vklv5ru31</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSLocationUsageDescription</key>
+	<string>We need your location to deliver your order</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to deliver your order</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location to deliver your order</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -62,24 +74,5 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>vlog</string>
-			</array>
-			<key>CFBundleURLName</key>
-			<string>auth</string>
-		</dict>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.626509355552-bmk5mda099te3il0c00h3g8vklv5ru31</string>
-			</array>
-			<key>CFBundleURLName</key>
-			<string>Google Sign-In</string>
-		</dict>
-	</array>
 </dict>
 </plist>

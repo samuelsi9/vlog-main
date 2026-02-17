@@ -31,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _localProfileName;
   String? _localProfileImagePath;
   String? _authUserName;
+  String? _profileAvatarUrl;
 
   @override
   void initState() {
@@ -49,12 +50,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final fullName = user['full_name']?.toString().trim();
         final first = user['first_name']?.toString().trim() ?? '';
         final last = user['last_name']?.toString().trim() ?? '';
+        final email = user['email']?.toString().trim();
         if (name != null && name.isNotEmpty) {
           authName = name;
         } else if (fullName != null && fullName.isNotEmpty) {
           authName = fullName;
         } else if ('$first $last'.trim().isNotEmpty) {
           authName = '$first $last'.trim();
+        } else if (email != null && email.isNotEmpty) {
+          authName = email;
         }
       }
     }
@@ -63,25 +67,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _localProfileName = prefs.getString('profile_name');
       _localProfileImagePath = prefs.getString('profile_image_path');
       _authUserName = authName;
+      _profileAvatarUrl = prefs.getString('profile_avatar_url');
     });
   }
 
-  Future<void> _saveProfile(String name, String? imagePath) async {
+  Future<void> _saveProfile(String name, String? imagePath, [String? avatarUrl]) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_name', name);
     if (imagePath != null) {
       await prefs.setString('profile_image_path', imagePath);
     }
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      await prefs.setString('profile_avatar_url', avatarUrl);
+      final user = await StorageService.getUser();
+      if (user != null) {
+        user['avatar'] = avatarUrl;
+        await StorageService.saveUser(user);
+      }
+    }
+    if (!mounted) return;
     setState(() {
       _localProfileName = name;
       _localProfileImagePath = imagePath;
+      _profileAvatarUrl = avatarUrl ?? _profileAvatarUrl;
     });
   }
 
+  /// Same auth user name as Realhome top bar: StorageService user (name → full_name → first+last → email).
   String get _displayName {
-    if (_localProfileName != null && _localProfileName!.isNotEmpty) {
-      return _localProfileName!;
-    }
     if (_authUserName != null && _authUserName!.isNotEmpty) {
       return _authUserName!;
     }
@@ -92,14 +105,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   ImageProvider get _profileImage {
-    // Priority: local image path > user model image > default asset
     if (_localProfileImagePath != null && _localProfileImagePath!.isNotEmpty) {
       try {
         return FileImage(File(_localProfileImagePath!));
       } catch (e) {
-        // If file doesn't exist, fall back to default
         return const AssetImage('assets/man.jpg');
       }
+    }
+    if (_profileAvatarUrl != null &&
+        _profileAvatarUrl!.isNotEmpty &&
+        (_profileAvatarUrl!.startsWith('http://') || _profileAvatarUrl!.startsWith('https://'))) {
+      return NetworkImage(_profileAvatarUrl!);
     }
     if (widget.user?.image != null &&
         widget.user!.image.isNotEmpty &&
@@ -214,8 +230,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           MaterialPageRoute(
                             builder: (context) => ProfileSettingsPage(
                               currentName: _displayName,
-                              currentImage:
-                                  _localProfileImagePath ?? widget.user?.image,
+                              currentImage: _profileAvatarUrl ??
+                                  _localProfileImagePath ??
+                                  widget.user?.image,
                               onSave: _saveProfile,
                             ),
                           ),

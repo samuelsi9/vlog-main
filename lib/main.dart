@@ -4,6 +4,7 @@ import 'package:uni_links/uni_links.dart';
 import 'dart:async';
 import 'package:vlog/presentation/home.dart';
 import 'package:vlog/presentation/auth/login_page.dart';
+import 'package:vlog/presentation/onboarding/onboarding_page.dart';
 import 'package:vlog/presentation/screen/checkout_confirmation_page.dart';
 import 'package:vlog/presentation/auth/reset_password_page.dart';
 import 'package:vlog/Utils/storage_service.dart';
@@ -50,6 +51,7 @@ class _MyAppState extends State<MyApp> {
   String? _initialLink;
   bool _initialized = false;
   bool _isAuthenticated = false;
+  bool _onboardingSeen = false;
 
   @override
   void initState() {
@@ -80,16 +82,26 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _checkAuth() async {
     if (_initialized) return;
-    final prefs = await SharedPreferences.getInstance();
-    final hasStorageToken = await StorageService.isLoggedIn();
-    final hasPrefsToken = (prefs.getString('auth_token') ?? '').isNotEmpty;
-    // Simulate loading time to show skeleton
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    setState(() {
-      _isAuthenticated = hasStorageToken || hasPrefsToken;
-      _initialized = true;
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasStorageToken = await StorageService.isLoggedIn();
+      final hasPrefsToken = (prefs.getString('auth_token') ?? '').isNotEmpty;
+      final onboardingSeen = await OnboardingPage.hasSeenOnboarding();
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      setState(() {
+        _isAuthenticated = hasStorageToken || hasPrefsToken;
+        _onboardingSeen = onboardingSeen;
+        _initialized = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isAuthenticated = false;
+        _onboardingSeen = false;
+        _initialized = true;
+      });
+    }
   }
 
   void _handleLink(String link) {
@@ -151,9 +163,13 @@ class _MyAppState extends State<MyApp> {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         routes: {'/checkout': (context) => const CheckoutConfirmationPage()},
-        home: _isAuthenticated
-            ? MainScreen(token: null)
-            : const LoginPage(),
+        home: _onboardingSeen
+            ? (_isAuthenticated ? MainScreen(token: null) : const LoginPage())
+            : OnboardingPage(
+                onComplete: () {
+                  setState(() => _onboardingSeen = true);
+                },
+              ),
       ),
     );
   }

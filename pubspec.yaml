@@ -50,8 +50,6 @@ dependencies:
   geocoding: ^3.0.0
   firebase_messaging: ^15.2.10
   flutter_local_notifications: ^20.0.0
- 
-
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +71,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/lottie/
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

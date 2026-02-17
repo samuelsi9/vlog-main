@@ -4,6 +4,7 @@ import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/model.dart';
 import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/category_items.dart';
@@ -81,13 +82,40 @@ class _RealhomeState extends State<Realhome> {
   int _lastPage = 1;
   bool _isLoadingMore = false;
 
+  String _userDisplayName = 'Guest';
+
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_performSearch);
     _scrollController.addListener(_onScroll);
+    _loadUserName();
     _fetchProducts();
     _fetchCategories();
+  }
+
+  /// Load display name from authenticated user (StorageService).
+  Future<void> _loadUserName() async {
+    final user = await StorageService.getUser();
+    if (!mounted) return;
+    if (user != null) {
+      final name = user['name']?.toString().trim();
+      final fullName = user['full_name']?.toString().trim();
+      final first = user['first_name']?.toString().trim() ?? '';
+      final last = user['last_name']?.toString().trim() ?? '';
+      final email = user['email']?.toString().trim();
+      String authName = 'Guest';
+      if (name != null && name.isNotEmpty) {
+        authName = name;
+      } else if (fullName != null && fullName.isNotEmpty) {
+        authName = fullName;
+      } else if ('$first $last'.trim().isNotEmpty) {
+        authName = '$first $last'.trim();
+      } else if (email != null && email.isNotEmpty) {
+        authName = email;
+      }
+      setState(() => _userDisplayName = authName);
+    }
   }
 
   /// Initial load: fetch page 1 only.
@@ -318,47 +346,41 @@ class _RealhomeState extends State<Realhome> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  // Location selector
+                  // Welcome and user name
                   Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        // Handle location selection
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            color: primaryColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Delivery to",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          color: primaryColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Welcome",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  "123 Main Street",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: uberBlack,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _userDisplayName,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: uberBlack,
                                 ),
-                              ],
-                            ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                          Icon(Icons.keyboard_arrow_down, color: uberBlack),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 16),

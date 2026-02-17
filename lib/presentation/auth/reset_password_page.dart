@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:vlog/Data/apiservices.dart';
-import 'package:vlog/presentation/home.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String resetToken;
@@ -28,36 +26,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
-    try {
-      final auth = AuthService();
-      final res = await auth.resetPassword(
-        resetToken: widget.resetToken,
-        password: _passwordController.text,
-        passwordConfirm: _passwordConfirmController.text,
-      );
-      if (!mounted) return;
-      if (res.isNotEmpty && res['token'] != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Password updated')));
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => MainScreen(token: null)),
-          (_) => false,
-        );
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Unexpected response')));
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Reset failed: ${e.toString()}')));
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Password reset is not available.')),
+    );
+    if (mounted) setState(() => _submitting = false);
   }
 
   @override

@@ -11,22 +11,10 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  String _selectedCurrency = 'USD';
-  String _selectedLanguage = 'English';
   bool _pushNotifications = true;
   bool _emailNotifications = true;
   bool _orderUpdates = true;
   bool _promotionalUpdates = false;
-
-  final List<String> _currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
-  final List<String> _languages = [
-    'English',
-    'Spanish',
-    'French',
-    'German',
-    'Chinese',
-    'Japanese',
-  ];
 
   @override
   void initState() {
@@ -37,8 +25,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _selectedCurrency = prefs.getString('currency') ?? 'USD';
-      _selectedLanguage = prefs.getString('language') ?? 'English';
       _pushNotifications = prefs.getBool('push_notifications') ?? true;
       _emailNotifications = prefs.getBool('email_notifications') ?? true;
       _orderUpdates = prefs.getBool('order_updates') ?? true;
@@ -53,149 +39,6 @@ class _SettingsPageState extends State<SettingsPage> {
     } else if (value is bool) {
       await prefs.setBool(key, value);
     }
-  }
-
-  void _showShippingAddress() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Shipping Address",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      decoration: InputDecoration(
-                        labelText: "Full Name",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: InputDecoration(
-                        labelText: "Street Address",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              labelText: "City",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              labelText: "State",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              labelText: "ZIP Code",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              labelText: "Country",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Shipping address saved!"),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          "Save Address",
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showPrivacyPolicy() {
@@ -487,68 +330,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
-          // Shipping Address
-          _buildSection(
-            title: "Shipping",
-            children: [
-              _buildTile(
-                icon: Icons.location_on,
-                title: "Shipping Address",
-                subtitle: "Manage your delivery address",
-                onTap: _showShippingAddress,
-              ),
-            ],
-          ),
-
-          // Currency & Language
-          _buildSection(
-            title: "Preferences",
-            children: [
-              _buildTile(
-                icon: Icons.attach_money,
-                title: "Currency",
-                subtitle: _selectedCurrency,
-                trailing: DropdownButton<String>(
-                  value: _selectedCurrency,
-                  underline: const SizedBox(),
-                  items: _currencies.map((currency) {
-                    return DropdownMenuItem(
-                      value: currency,
-                      child: Text(currency),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedCurrency = value);
-                      _saveSetting('currency', value);
-                    }
-                  },
-                ),
-              ),
-              _buildTile(
-                icon: Icons.language,
-                title: "Language",
-                subtitle: _selectedLanguage,
-                trailing: DropdownButton<String>(
-                  value: _selectedLanguage,
-                  underline: const SizedBox(),
-                  items: _languages.map((language) {
-                    return DropdownMenuItem(
-                      value: language,
-                      child: Text(language),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedLanguage = value);
-                      _saveSetting('language', value);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-
           // Notifications
           _buildSection(
             title: "Notifications",
