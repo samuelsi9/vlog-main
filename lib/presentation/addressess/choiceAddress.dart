@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Models/delivery_address_model.dart';
 import 'package:vlog/presentation/screen/checkout_confirmation_page.dart';
@@ -439,25 +440,123 @@ class _AddressDetailsSheet extends StatefulWidget {
 
 class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _receiverController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _landmarkController = TextEditingController();
+  final _streetController = TextEditingController();
+  final _buildingController = TextEditingController();
+  final _apartmentNumberController = TextEditingController();
   final _cityController = TextEditingController();
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
   String _addressType = 'Home';
   bool _saving = false;
+  bool _gettingLocation = false;
 
   @override
   void dispose() {
-    _receiverController.dispose();
-    _addressController.dispose();
-    _landmarkController.dispose();
+    _streetController.dispose();
+    _buildingController.dispose();
+    _apartmentNumberController.dispose();
     _cityController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() => _gettingLocation = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location services are disabled. Please enable them.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission permanently denied. You can set it in device settings.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission is required to use your current location.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+      if (!mounted) return;
+      setState(() {
+        _latitudeController.text = position.latitude.toString();
+        _longitudeController.text = position.longitude.toString();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location set from your current position'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _gettingLocation = false);
+    }
+  }
+
+  double _parseLatLng(TextEditingController c, double fallback) {
+    final t = c.text.trim();
+    if (t.isEmpty) return fallback;
+    return double.tryParse(t) ?? fallback;
   }
 
   String? _validateRequired(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) return '$fieldName is required';
     return null;
+  }
+
+  InputDecoration _addressFieldDecoration(String labelText, String hintText) {
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _redPrimary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -466,15 +565,17 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
     setState(() => _saving = true);
     try {
       final auth = AuthService();
+      final lat = _parseLatLng(_latitudeController, 0.0);
+      final lng = _parseLatLng(_longitudeController, 0.0);
       await auth.createAddress(
-        street: _addressController.text.trim(),
-        buildingNumber: '',
-        apartmentNumber: '',
+        street: _streetController.text.trim(),
+        buildingNumber: _buildingController.text.trim(),
+        apartmentNumber: _apartmentNumberController.text.trim(),
         city: _cityController.text.trim().isEmpty ? 'City' : _cityController.text.trim(),
-        latitude: 0.0,
-        longitude: 0.0,
+        latitude: lat,
+        longitude: lng,
         isDefault: false,
-        receiverName: _receiverController.text.trim().isEmpty ? null : _receiverController.text.trim(),
+        receiverName: null,
         addressType: _addressType,
       );
       if (!mounted) return;
@@ -482,12 +583,12 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: '',
         label: _addressType,
-        street: _addressController.text.trim(),
+        street: _streetController.text.trim(),
         city: _cityController.text.trim(),
         postalCode: '',
         country: '',
-        latitude: 0,
-        longitude: 0,
+        latitude: lat,
+        longitude: lng,
         phone: null,
         isDefault: false,
       );
@@ -600,94 +701,66 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                       ),
                       const SizedBox(height: 24),
                       TextFormField(
-                        controller: _receiverController,
-                        decoration: InputDecoration(
-                          labelText: "Receiver's name *",
-                          hintText: "Receiver's name *",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _redPrimary, width: 2),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.red),
-                          ),
-                        ),
-                        validator: (v) => _validateRequired(v, "Receiver's name"),
+                        controller: _streetController,
+                        decoration: _addressFieldDecoration('Street *', 'Street'),
+                        validator: (v) => _validateRequired(v, 'Street'),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
-                        controller: _addressController,
-                        decoration: InputDecoration(
-                          labelText: 'Complete address *',
-                          hintText: 'Complete address *',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _redPrimary, width: 2),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.red),
-                          ),
-                        ),
-                        maxLines: 2,
-                        validator: (v) => _validateRequired(v, 'Complete address'),
+                        controller: _buildingController,
+                        decoration: _addressFieldDecoration('Building number *', 'Building number'),
+                        validator: (v) => _validateRequired(v, 'Building number'),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _apartmentNumberController,
+                        decoration: _addressFieldDecoration('Apartment number (optional)', 'Apartment number'),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _cityController,
-                        decoration: InputDecoration(
-                          labelText: 'City',
-                          hintText: 'City',
-                          border: OutlineInputBorder(
+                        decoration: _addressFieldDecoration('City *', 'City'),
+                        validator: (v) => _validateRequired(v, 'City'),
+                      ),
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        onPressed: _gettingLocation ? null : _getCurrentLocation,
+                        icon: _gettingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.my_location, size: 20),
+                        label: Text(_gettingLocation ? 'Getting location...' : 'Use my current location'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _redPrimary,
+                          side: const BorderSide(color: _redPrimary),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _redPrimary, width: 2),
                           ),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _landmarkController,
-                        decoration: InputDecoration(
-                          labelText: 'Nearby Landmark (optional)',
-                          hintText: 'Nearby Landmark (optional)',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _latitudeController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              decoration: _addressFieldDecoration('Latitude (optional)', 'e.g. 40.7128'),
+                            ),
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _longitudeController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              decoration: _addressFieldDecoration('Longitude (optional)', 'e.g. -74.0060'),
+                            ),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: _redPrimary, width: 2),
-                          ),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 28),
                       SizedBox(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/presentation/addressess/addresses.dart';
 import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -25,6 +26,7 @@ class _RegisterPageState extends State<RegisterPage>
   final firstNameController = TextEditingController();
   final lastNameController = TextEditingController();
   final emailController = TextEditingController();
+  final phoneController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
@@ -91,6 +93,7 @@ class _RegisterPageState extends State<RegisterPage>
     firstNameController.dispose();
     lastNameController.dispose();
     emailController.dispose();
+    phoneController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     super.dispose();
@@ -249,6 +252,17 @@ class _RegisterPageState extends State<RegisterPage>
     return null;
   }
 
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+    if (digitsOnly.length < 8) {
+      return 'Enter a valid phone number';
+    }
+    return null;
+  }
+
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Password is required';
@@ -282,21 +296,15 @@ class _RegisterPageState extends State<RegisterPage>
 
   void signUserUp() async {
     if (_formKey.currentState!.validate()) {
-      // Form is valid, proceed with registration
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Registration successful!')));
-      // TODO: Add your registration logic here
-
-      // Call API
+      // Call API; show success only after API succeeds, error only on failure
       try {
         final authService = AuthService();
         final result = await authService.register(
           name: '${firstNameController.text} ${lastNameController.text}',
           email: emailController.text,
+          phone: phoneController.text.trim(),
           password: passwordController.text,
           role: "2",
-          
         );
 
         if (result.isNotEmpty && result['user'] != null) {
@@ -316,20 +324,23 @@ class _RegisterPageState extends State<RegisterPage>
             );
           }
         }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(UserErrorMapper.toUserMessage(e)),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       } catch (e) {
         if (mounted) {
-          String errorMessage = 'Registration failed';
-          if (e.toString().contains('userExistsUsername') || 
-              e.toString().contains('email') && e.toString().contains('taken')) {
-            errorMessage =
-                'Email already exists. Please use different credentials.';
-          } else if (e.toString().contains('network') ||
-              e.toString().contains('Network') ||
-              e.toString().contains('SocketException')) {
-            errorMessage = 'Network error. Please check your connection.';
-          } else {
-            errorMessage = e.toString().replaceAll('Exception: ', '');
-          }
+          final String errorMessage = e.toString().contains('network') ||
+                  e.toString().contains('Network') ||
+                  e.toString().contains('SocketException')
+              ? 'Network error. Please check your connection.'
+              : 'Registration failed';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
@@ -557,6 +568,13 @@ class _RegisterPageState extends State<RegisterPage>
                             keyboardType: TextInputType.emailAddress,
                             decoration: _inputDecoration('Enter Email'),
                             validator: _validateEmail,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            decoration: _inputDecoration('Phone Number'),
+                            validator: _validatePhone,
                           ),
                           const SizedBox(height: 14),
                           TextFormField(

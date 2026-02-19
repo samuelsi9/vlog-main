@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/presentation/home.dart';
 import 'package:vlog/presentation/auth/register_page.dart';
 import 'package:vlog/presentation/auth/forgot_password_page.dart';
@@ -119,18 +120,20 @@ class _LoginPageState extends State<LoginPage>
           backgroundColor: Colors.red,
         ));
       }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(UserErrorMapper.toUserMessage(e)),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ));
     } catch (e) {
       if (!mounted) return;
-      String errorMessage = 'Login failed';
-      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-        errorMessage = 'Invalid email or password';
-      } else if (e.toString().contains('network') ||
-          e.toString().contains('Network') ||
-          e.toString().contains('SocketException')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else {
-        errorMessage = e.toString().replaceAll('Exception: ', '');
-      }
+      final String errorMessage = e.toString().contains('network') ||
+              e.toString().contains('Network') ||
+              e.toString().contains('SocketException')
+          ? 'Network error. Please check your connection.'
+          : 'Login failed';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(errorMessage),
         backgroundColor: Colors.red,
@@ -153,8 +156,8 @@ class _LoginPageState extends State<LoginPage>
       );
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) return;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Google sign-in failed: ${e.description ?? e}')),
       );
     } catch (e) {
@@ -188,8 +191,8 @@ class _LoginPageState extends State<LoginPage>
         await prefs.setString('auth_user', jsonEncode({
           'id': userCredential.user!.uid,
           'email': userCredential.user!.email ?? appleCredential.email,
-          'name': userCredential.user!.displayName ??
-              '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim(),
+          'name': userCredential.user!.displayName ?? 
+                  '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim(),
         }));
 
         if (!mounted) return;
@@ -239,7 +242,7 @@ class _LoginPageState extends State<LoginPage>
                   ],
                 ),
                 child: Column(
-                  children: [
+                children: [
                     FadeTransition(
                       opacity: _fadeKoliago,
                       child: SlideTransition(
@@ -264,7 +267,7 @@ class _LoginPageState extends State<LoginPage>
                                     horizontal: 28,
                                     vertical: 18,
                                   ),
-                                  decoration: BoxDecoration(
+                    decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
@@ -394,19 +397,19 @@ class _LoginPageState extends State<LoginPage>
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     child: Form(
-                  key: _formKey,
-                  child: Column(
+                key: _formKey,
+                child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextFormField(
-                        controller: usernameController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
+                  children: [
+                    TextFormField(
+                      controller: usernameController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
                           hintText: 'Enter Email or Mobile',
                           hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
-                          filled: true,
+                        filled: true,
                           fillColor: Colors.grey.shade50,
-                          border: OutlineInputBorder(
+                        border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
@@ -418,25 +421,25 @@ class _LoginPageState extends State<LoginPage>
                             horizontal: 18,
                             vertical: 16,
                           ),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Email is required';
-                          }
-                          final regex = RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          );
-                          if (!regex.hasMatch(v.trim())) {
-                            return 'Enter a valid email';
-                          }
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Email is required';
+                        }
+                        final regex = RegExp(
+                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        );
+                        if (!regex.hasMatch(v.trim())) {
+                          return 'Enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                           hintText: 'Enter Password',
                           hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
                           filled: true,
@@ -449,9 +452,9 @@ class _LoginPageState extends State<LoginPage>
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                               color: _lightGrey,
@@ -462,27 +465,27 @@ class _LoginPageState extends State<LoginPage>
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
                             vertical: 16,
-                          ),
                         ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return 'Password is required';
-                          }
-                          if (v.length < 6) return 'Minimum 6 characters';
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ForgotPasswordPage(),
-                              ),
-                            );
-                          },
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Password is required';
+                        }
+                        if (v.length < 6) return 'Minimum 6 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordPage(),
+                            ),
+                          );
+                        },
                           child: Text(
                             'Forgot password?',
                             style: TextStyle(
@@ -509,7 +512,7 @@ class _LoginPageState extends State<LoginPage>
                             ),
                           );
                         },
-                        child: Text(
+                    child: Text(
                           'Sign up',
                           style: TextStyle(
                             color: _primaryRed,
@@ -543,15 +546,15 @@ class _LoginPageState extends State<LoginPage>
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
-                            ),
-                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-              ),
+                      ),
+                    ),
+                  ),
               ),
             ],
           ),

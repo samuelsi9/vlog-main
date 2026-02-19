@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Models/product_detail_model.dart';
@@ -71,6 +72,7 @@ class AuthService {
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
+    required String phone,
     required String password,
     required String role,
   }) async {
@@ -82,8 +84,7 @@ class AuthService {
           "email": email,
           "role_id": role,
           "password": password,
-          "phone":"632434556566" ,
-         
+          "phone": phone,
         },
       );
 
@@ -109,8 +110,7 @@ class AuthService {
         return data; // Return full response with token and user
       }
     } on DioException catch (e) {
-      print('Registration failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error: $e');
       rethrow;
@@ -149,8 +149,7 @@ class AuthService {
         return data; // { access_token, token_type, user }
       }
     } on DioException catch (e) {
-      print('Login failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during login: $e');
       rethrow;
@@ -184,8 +183,7 @@ class AuthService {
         print('checkEmail unexpected type: ${raw.runtimeType}');
       }
     } on DioException catch (e) {
-      print('Check email failed: ${e.response?.data}');
-      return {};
+      ApiErrorHandler.handle(e);
     } catch (e, stack) {
       print('Unexpected error during check email: $e');
       print('$stack');
@@ -217,8 +215,7 @@ class AuthService {
         if (raw is Map) return Map<String, dynamic>.from(raw);
       }
     } on DioException catch (e) {
-      print('Reset password failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e, stack) {
       print('Unexpected error during reset password: $e');
       print('$stack');
@@ -237,10 +234,8 @@ class AuthService {
 
       return "Logged out successfully";
     } on DioException catch (e) {
-      // Even if logout fails on server, clear local storage
       await StorageService.clearAll();
-      print('Logout failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       // Even if logout fails, clear local storage
       await StorageService.clearAll();
@@ -296,10 +291,7 @@ class AuthService {
       }
       throw Exception('Failed to upload avatar: ${response.statusCode}');
     } on DioException catch (e) {
-      final msg = e.response?.data is Map
-          ? (e.response!.data as Map)['message']?.toString()
-          : null;
-      throw Exception(msg ?? e.message ?? 'Failed to upload avatar');
+      ApiErrorHandler.handle(e);
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Failed to upload avatar: $e');
@@ -323,8 +315,7 @@ class AuthService {
         throw Exception('Failed to fetch products: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Get products failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during get products: $e');
       rethrow;
@@ -369,8 +360,7 @@ class AuthService {
         throw Exception('Failed to fetch products by category: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Get products by category failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during get products by category: $e');
       rethrow;
@@ -390,8 +380,7 @@ class AuthService {
         throw Exception('Failed to fetch product: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Get product by ID failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during get product by ID: $e');
       rethrow;
@@ -412,8 +401,7 @@ class AuthService {
         throw Exception('Failed to fetch product details: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Get product detail failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during get product detail: $e');
       rethrow;
@@ -439,8 +427,7 @@ class AuthService {
         throw Exception('Failed to fetch categories: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Get categories failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during get categories: $e');
       rethrow;
@@ -498,8 +485,7 @@ class AuthService {
         throw Exception('Failed to create address: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('Create address failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during create address: $e');
       rethrow;
@@ -540,9 +526,7 @@ class AuthService {
       }
       return [];
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return [];
-      print('allMyAddresses failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during allMyAddresses: $e');
       rethrow;
@@ -562,8 +546,7 @@ class AuthService {
         throw Exception('Failed to set address as default: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('useAddress failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during useAddress: $e');
       rethrow;
@@ -582,8 +565,7 @@ class AuthService {
         throw Exception('Failed to delete address: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('deleteAddress failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during deleteAddress: $e');
       rethrow;
@@ -620,8 +602,7 @@ class AuthService {
       }
       throw Exception('Failed to place order: ${response.statusCode}');
     } on DioException catch (e) {
-      print('placeOrder failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during placeOrder: $e');
       rethrow;
@@ -657,9 +638,7 @@ class AuthService {
       }
       return [];
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return [];
-      print('getAllOrderHistory failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during getAllOrderHistory: $e');
       rethrow;
@@ -684,8 +663,7 @@ class AuthService {
       }
       throw Exception('Failed to fetch order: ${response.statusCode}');
     } on DioException catch (e) {
-      print('getSingleOrderHistory failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during getSingleOrderHistory: $e');
       rethrow;
@@ -709,8 +687,7 @@ class AuthService {
       if (data is Map<String, dynamic>) return data;
       return {'message': 'Order cancelled successfully', 'order': {'id': int.tryParse(orderId), 'status': 'cancelled'}};
     } on DioException catch (e) {
-      print('cancelOrder failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during cancelOrder: $e');
       rethrow;
@@ -740,9 +717,7 @@ class AuthService {
       }
       return WishlistResponse(data: []);
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return WishlistResponse(data: []);
-      print('fetchWishlist failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during fetchWishlist: $e');
       rethrow;
@@ -770,8 +745,7 @@ class AuthService {
       }
       throw Exception('Failed to add to wishlist: ${response.statusCode}');
     } on DioException catch (e) {
-      print('addToWishlist failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during addToWishlist: $e');
       rethrow;
@@ -791,8 +765,7 @@ class AuthService {
         throw Exception('Failed to remove from wishlist: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('removeFromWishlist failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during removeFromWishlist: $e');
       rethrow;
@@ -828,20 +801,7 @@ class AuthService {
         throw Exception('Failed to fetch cart: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('❌ Get cart failed: ${e.response?.statusCode}');
-      print('Error data: ${e.response?.data}');
-      if (e.response?.statusCode == 401) {
-        throw Exception('Unauthorized: Please login again');
-      } else if (e.response?.statusCode == 404) {
-        // Cart might not exist yet, return empty cart
-        return CartModel(
-          cartId: 0,
-          items: [],
-          deliveryFee: 0.0,
-          total: 0.0,
-        );
-      }
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('❌ Unexpected error during get cart: $e');
       rethrow;
@@ -877,12 +837,7 @@ class AuthService {
         throw Exception('Failed to add to cart: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('❌ Add to cart failed: ${e.response?.statusCode}');
-      print('Error data: ${e.response?.data}');
-      if (e.response?.statusCode == 401) {
-        throw Exception('Unauthorized: Please login again');
-      }
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('❌ Unexpected error during add to cart: $e');
       rethrow;
@@ -926,12 +881,7 @@ class AuthService {
         throw Exception('Failed to update cart item: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('❌ Update cart item failed: ${e.response?.statusCode}');
-      print('Error data: ${e.response?.data}');
-      if (e.response?.statusCode == 401) {
-        throw Exception('Unauthorized: Please login again');
-      }
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('❌ Unexpected error during update cart item: $e');
       rethrow;
@@ -966,12 +916,7 @@ class AuthService {
         throw Exception('Failed to remove from cart: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('❌ Remove from cart failed: ${e.response?.statusCode}');
-      print('Error data: ${e.response?.data}');
-      if (e.response?.statusCode == 401) {
-        throw Exception('Unauthorized: Please login again');
-      }
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('❌ Unexpected error during remove from cart: $e');
       rethrow;
@@ -1002,11 +947,7 @@ class AuthService {
       }
       return [];
     } on DioException catch (e) {
-      if (e.response?.statusCode == 401 || e.response?.statusCode == 404) {
-        return [];
-      }
-      print('viewNotification failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during viewNotification: $e');
       rethrow;
@@ -1025,8 +966,7 @@ class AuthService {
         print('markAsRead unexpected status: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      print('markAsRead failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Unexpected error during markAsRead: $e');
       rethrow;
@@ -1062,8 +1002,7 @@ class AuthService {
           ? response.data as Map<String, dynamic>
           : {};
     } on DioException catch (e) {
-      print('Google login API failed: ${e.response?.data}');
-      rethrow;
+      ApiErrorHandler.handle(e);
     } catch (e) {
       print('Google login API error: $e');
       rethrow;
