@@ -13,11 +13,13 @@ import 'package:vlog/Models/order_history_model.dart';
 import 'package:vlog/Models/wishlist_model.dart';
 import 'package:vlog/Models/notification_model.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart' as sign_in_with_apple;
 
 class AuthService {
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: 'http://127.0.0.1:8000', // Change to your base URL
+      baseUrl: 'https://www.wgraole.com',
+       // Change to your base URL
       headers: {'Accept': 'application/json'},
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
@@ -449,8 +451,8 @@ class AuthService {
     required double longitude,
     bool isDefault = false,
     String? receiverName,
+    String? label,
     String? addressType,
-   
   }) async {
     try {
       final token = await StorageService.getToken();
@@ -458,15 +460,17 @@ class AuthService {
         throw Exception('No authentication token found. Please login first.');
       }
 
+      // Use label (e.g. address type: Home, Office, Friend's house) for the API label field
+      final labelValue = label ?? addressType ?? "Home";
       final data = <String, dynamic>{
-        'street': street,
+        'street': "none for now",
         'building_number': buildingNumber,
-        'apartment_number': apartmentNumber,
-        'city': city,
+        'apartment_number': "none for now",
+        'city': "lefkosia",
         'latitude': latitude,
         'longitude': longitude,
         'is_default': isDefault,
-        'label': addressType ?? "Home",
+        'label': labelValue,
       };
       if (receiverName != null && receiverName.isNotEmpty) data['receiver_name'] = receiverName;
       if (addressType != null && addressType.isNotEmpty) data['address_type'] = addressType;
@@ -554,7 +558,8 @@ class AuthService {
   }
 
   /// Deletes an address. DELETE /api/addresses/{id}.
-  Future<void> deleteAddress(String id) async {
+  /// Returns response data, e.g. { "message": "Address deleted successfully" }.
+  Future<Map<String, dynamic>> deleteAddress(String id) async {
     try {
       final token = await StorageService.getToken();
       if (token == null || token.isEmpty) {
@@ -564,6 +569,9 @@ class AuthService {
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Failed to delete address: ${response.statusCode}');
       }
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      return <String, dynamic>{};
     } on DioException catch (e) {
       ApiErrorHandler.handle(e);
     } catch (e) {
@@ -795,7 +803,16 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = response.data['data'] as Map<String, dynamic>;
+        final raw = response.data['data'];
+        Map<String, dynamic> data;
+        if (raw is Map) {
+          data = raw as Map<String, dynamic>;
+          if (data['cart'] is Map) {
+            data = data['cart'] as Map<String, dynamic>;
+          }
+        } else {
+          data = <String, dynamic>{};
+        }
         return CartModel.fromMap(data);
       } else {
         throw Exception('Failed to fetch cart: ${response.statusCode}');
@@ -974,9 +991,10 @@ class AuthService {
   }
   
 
-  /// POST token (Google id_token) to http://127.0.0.1:8001/api/googlelogin. Body: { "token": idToken }. Response same format as register. Prints to console.
+  /// POST token (Google id_token) to backend. Body: { "token": idToken }. Response same format as register.
   static Future<Map<String, dynamic>> googleLogin(String idToken) async {
-    const String url = 'http://127.0.0.1:8000/api/googlelogin';
+    final baseUrl = AuthService().baseUrl;
+    final url = '$baseUrl/api/googlelogin';
     try {
       final dio = Dio(BaseOptions(
         headers: {'Accept': 'application/json'},
@@ -1062,8 +1080,88 @@ class AuthService {
   } catch (e) {
     print('Google Sign-In error: $e');
     rethrow;
+    }
   }
-}
+
+  /// Apple Sign-In: sends identity_token to Laravel backend.
+  /// Backend should verify token with Apple, create/find user, return { access_token, token_type, user }.
+  /// Body: { identity_token, authorization_code?, email?, name? }
+  static Future<Map<String, dynamic>> appleLogin({
+    required String identityToken,
+    String? authorizationCode,
+    String? email,
+    String? name,
+  }) async {
+    final baseUrl = AuthService().baseUrl;
+    final url = '$baseUrl/api/applelogin';
+    try {
+      final dio = Dio(BaseOptions(
+        baseUrl: baseUrl,
+        headers: {'Accept': 'application/json'},
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ));
+      final data = <String, dynamic>{
+        'identity_token': identityToken,
+        if (authorizationCode != null) 'authorization_code': authorizationCode,
+        if (email != null && email.isNotEmpty) 'email': email,
+        if (name != null && name.isNotEmpty) 'name': name,
+      };
+      final response = await dio.post(url, data: data);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : {};
+      }
+      return response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : {};
+    } on DioException catch (e) {
+      ApiErrorHandler.handle(e);
+    } catch (e) {
+      print('Apple login API error: $e');
+      rethrow;
+    }
+    return {};
+  }
+
+  /// Sign in with Apple: gets credential, sends to Laravel, saves token and navigates.
+  static Future<void> signInWithApple() async {
+    try {
+      final credential = await sign_in_with_apple.SignInWithApple.getAppleIDCredential(
+        scopes: [
+          sign_in_with_apple.AppleIDAuthorizationScopes.email,
+          sign_in_with_apple.AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      final identityToken = credential.identityToken;
+      if (identityToken == null || identityToken.isEmpty) {
+        throw Exception('Apple identity token is empty');
+      }
+      final name = '${credential.givenName ?? ''} ${credential.familyName ?? ''}'.trim();
+      final email = credential.email;
+      final apiResponse = await appleLogin(
+        identityToken: identityToken,
+        authorizationCode: credential.authorizationCode,
+        email: email?.isNotEmpty == true ? email : null,
+        name: name.isNotEmpty ? name : null,
+      );
+      if (apiResponse.isNotEmpty) {
+        final accessToken = apiResponse['access_token'] as String?;
+        final tokenType = apiResponse['token_type'] as String? ?? 'Bearer';
+        final userData = apiResponse['user'] as Map<String, dynamic>?;
+        if (accessToken != null && accessToken.isNotEmpty) {
+          await StorageService.saveToken(accessToken);
+          await StorageService.saveTokenType(tokenType);
+          if (userData != null) {
+            await StorageService.saveUser(userData);
+          }
+        }
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
 
   /// Clear entire cart
   /// Returns empty CartModel

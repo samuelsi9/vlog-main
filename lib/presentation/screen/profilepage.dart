@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Models/user_model.dart';
-import 'package:vlog/Models/model.dart';
+import 'package:vlog/Models/product_model.dart';
+import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/cart_service.dart';
 import 'package:vlog/Utils/storage_service.dart';
+import 'package:vlog/Utils/recently_viewed_service.dart';
+import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/profile_settings_page.dart';
 import 'package:vlog/presentation/screen/settings_page.dart';
 import 'package:vlog/presentation/screen/delivery_tracking_page.dart';
 import 'package:vlog/presentation/screen/orders_history_page.dart';
+import 'package:vlog/presentation/addressess/choiceAddress.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
@@ -25,18 +29,63 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Use items from the existing itemModel list
-  List<itemModel> get recentItems => itemC.take(4).toList();
-
   String? _localProfileName;
   String? _localProfileImagePath;
   String? _authUserName;
   String? _profileAvatarUrl;
 
+  List<ProductModel> _relatedProducts = [];
+  bool _isLoadingRelated = true;
+  int? _addingProductId;
+
   @override
   void initState() {
     super.initState();
     _loadLocalProfile();
+    _fetchRelatedProducts();
+  }
+
+  Future<void> _fetchRelatedProducts() async {
+    setState(() => _isLoadingRelated = true);
+    try {
+      final recent = await RecentlyViewedService.getRecentlyViewed();
+      if (recent.isEmpty) {
+        if (mounted) {
+          setState(() {
+          _relatedProducts = [];
+          _isLoadingRelated = false;
+        });
+        }
+        return;
+      }
+      final categoryIds = recent.map((e) => e['categoryId']!).where((id) => id > 0).toSet().toList();
+      final excludeIds = recent.map((e) => e['productId']!).where((id) => id > 0).toSet();
+      final all = <ProductModel>[];
+      final auth = AuthService();
+      for (final catId in categoryIds) {
+        try {
+          final resp = await auth.getProductsByCategory(categoryId: catId, page: 1);
+          for (final p in resp.data) {
+            if (!excludeIds.contains(p.id) && !all.any((x) => x.id == p.id)) {
+              all.add(p);
+            }
+          }
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+        _relatedProducts = all.take(8).toList();
+        _isLoadingRelated = false;
+      });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+        _relatedProducts = [];
+        _isLoadingRelated = false;
+      });
+      }
+    }
   }
 
   Future<void> _loadLocalProfile() async {
@@ -358,9 +407,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       "Manage your delivery locations",
                       Colors.green,
                       () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Addresses coming soon"),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChoiceAddress(fromCheckout: false),
                           ),
                         );
                       },
@@ -396,251 +446,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            // Recently viewed items grid
+            // Related products (based on recently viewed categories)
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.68,
-              ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                final item = recentItems[index];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => Detail(ecom: item),
+              sliver: _isLoadingRelated
+                  ? const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(child: CircularProgressIndicator(color: primaryColor)),
                       ),
-                    );
-                  },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey[200]!,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                              spreadRadius: 0,
-                            ),
-                          ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20),
-                          ),
-                              child: Stack(
+                    )
+                  : _relatedProducts.isEmpty
+                      ? SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Image.asset(
-                            item.image,
-                                    height: 120,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
+                                  Icon(Icons.shopping_bag_outlined, size: 48, color: Colors.grey[400]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    "No related products yet",
+                                    style: TextStyle(fontSize: 16, color: Colors.grey[600], fontWeight: FontWeight.w500),
                                   ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.9),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.favorite_border,
-                                        size: 16,
-                                        color: Colors.grey[700],
-                                      ),
-                                    ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "View some products to see recommendations here",
+                                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ],
                               ),
                             ),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                            item.name,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: uberBlack,
-                                            letterSpacing: -0.2,
-                                          ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                                        const SizedBox(height: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 5,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.amber[50],
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.star,
-                                                color: Colors.amber[700],
-                                                size: 11,
-                                              ),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                item.rating.toString(),
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.amber[900],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                            "₺${item.price}",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                                              color: primaryColor,
-                                              letterSpacing: -0.5,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        Consumer<CartService>(
-                                          builder:
-                                              (context, cartService, child) {
-                                            return Material(
-                                              color: primaryColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              child: InkWell(
-                                                onTap: () async {
-                                                  try {
-                                                    await cartService.addToCart(item);
-                                                    if (mounted) {
-                                                      ScaffoldMessenger.of(context)
-                                                          .showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                            "${item.name} added to cart",
-                                                          ),
-                                                          duration: const Duration(
-                                                              seconds: 1),
-                                                          backgroundColor:
-                                                              primaryColor,
-                                                          behavior: SnackBarBehavior
-                                                              .floating,
-                                                          shape:
-                                                              RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                          10),
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  } catch (e) {
-                                                    if (mounted) {
-                                                      final errorMessage = e.toString().replaceAll('Exception: ', '');
-                                                      final isAuthError = errorMessage.contains('authenticated') || 
-                                                                          errorMessage.contains('Authentication');
-                                                      ScaffoldMessenger.of(context)
-                                                          .showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                            isAuthError
-                                                                ? "You must be authenticated to add items to cart"
-                                                                : "Failed to add to cart: $errorMessage",
-                                                          ),
-                                                          duration: const Duration(
-                                                              seconds: 3),
-                                                          backgroundColor:
-                                                              isAuthError ? Colors.orange : Colors.red,
-                                                          behavior: SnackBarBehavior
-                                                              .floating,
-                                                          shape:
-                                                              RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                          10),
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  }
-                                                },
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                child: Container(
-                                                  width: 36,
-                                                  height: 36,
-                                                  decoration: BoxDecoration(
-                                                    color: primaryColor,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.add,
-                                                    color: Colors.white,
-                                                    size: 18,
-                                                  ),
-                                                ),
-                                ),
-                              );
-                            },
+                        )
+                      : SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.68,
                           ),
-                                      ],
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _buildRelatedProductCard(_relatedProducts[index]),
+                            childCount: _relatedProducts.length,
+                          ),
                         ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-                  childCount: recentItems.length,
-                ),
-              ),
             ),
             const SliverToBoxAdapter(
               child: SizedBox(height: 20),
@@ -648,6 +500,261 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProductImage(String imageUrl, {double? height}) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        height: height ?? 120,
+        width: double.infinity,
+        color: Colors.grey[200],
+        child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 30),
+      );
+    }
+    final trimmed = imageUrl.trim();
+    final isNetwork = trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.contains('://');
+    return SizedBox(
+      height: height ?? 120,
+      width: double.infinity,
+      child: isNetwork
+          ? Image.network(trimmed, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey[200],
+              child: Icon(Icons.broken_image, color: Colors.grey[400]),
+            ))
+          : Image.asset(trimmed, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey[200],
+              child: Icon(Icons.broken_image, color: Colors.grey[400]),
+            )),
+    );
+  }
+
+  Widget _buildRelatedProductCard(ProductModel product) {
+    return Consumer2<CartService, WishlistService>(
+      builder: (context, cartService, wishlistService, _) {
+        final isInWishlist = wishlistService.isInWishlist(product);
+        final isToggling = wishlistService.isToggling(product.id);
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => Detail(productId: product.id)),
+            );
+            if (mounted) _fetchRelatedProducts();
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey[200]!, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: Stack(
+                    children: [
+                      _buildProductImage(product.image, height: 120),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: InkWell(
+                          onTap: () async {
+                            try {
+                              await wishlistService.toggleWishlist(product);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(isInWishlist
+                                        ? "${product.name} removed from wishlist"
+                                        : "${product.name} added to wishlist"),
+                                    duration: const Duration(seconds: 1),
+                                    backgroundColor: primaryColor,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Wishlist: $e'), backgroundColor: Colors.red),
+                                );
+                              }
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: isToggling
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey[700]),
+                                  )
+                                : Icon(
+                                    isInWishlist ? Icons.favorite : Icons.favorite_border,
+                                    size: 16,
+                                    color: isInWishlist ? Colors.red : Colors.grey[700],
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: uberBlack,
+                                letterSpacing: -0.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber[50],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star, color: Colors.amber[700], size: 11),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    product.rating.toString(),
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.amber[900]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "₺${product.price.toStringAsFixed(0)}",
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryColor),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade100,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      "1${product.unitType}",
+                                      style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Material(
+                              color: primaryColor,
+                              borderRadius: BorderRadius.circular(10),
+                              child: InkWell(
+                                onTap: () async {
+                                  if (_addingProductId == product.id) return;
+                                  setState(() => _addingProductId = product.id);
+                                  try {
+                                    await cartService.addToCartByProductId(product.id);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text("${product.name} added to cart"),
+                                          duration: const Duration(seconds: 1),
+                                          backgroundColor: primaryColor,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      final msg = e.toString().replaceAll('Exception: ', '');
+                                      final isAuth = msg.contains('authenticated') || msg.contains('Authentication');
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(isAuth ? "Sign in to add to cart" : "Failed: $msg"),
+                                          backgroundColor: isAuth ? Colors.orange : Colors.red,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) setState(() => _addingProductId = null);
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: primaryColor,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: _addingProductId == product.id
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(Icons.add, color: Colors.white, size: 18),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

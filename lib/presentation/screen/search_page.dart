@@ -25,12 +25,12 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   List<itemModel> _searchResults = [];
   bool _isSearching = false;
-  final List<String> _recentSearches = ['Wing'];
+  final List<String> _recentSearches = [];
   List<CategoryModel> _categories = [];
   bool _isLoadingCategories = true;
-  bool _hasCategoryError = false;
   List<ProductModel> _allProducts = [];
   final AuthService _authService = AuthService();
+  int? _addingProductId;
 
   // Helper method to build image provider (handles both network and asset images)
   ImageProvider _buildImageProvider(String imageUrl) {
@@ -73,7 +73,6 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _fetchCategories() async {
     setState(() {
       _isLoadingCategories = true;
-      _hasCategoryError = false;
     });
 
     try {
@@ -91,7 +90,6 @@ class _SearchPageState extends State<SearchPage> {
         setState(() {
           _categories = [];
           _isLoadingCategories = false;
-          _hasCategoryError = true;
         });
       }
     }
@@ -109,10 +107,9 @@ class _SearchPageState extends State<SearchPage> {
       }
     } catch (e) {
       debugPrint('Error fetching products: $e');
-      // Fallback to itemC if API fails
       if (mounted) {
         setState(() {
-          _searchResults = itemC;
+          _searchResults = [];
         });
       }
     }
@@ -172,6 +169,7 @@ class _SearchPageState extends State<SearchPage> {
                     ? loadingProgress.cumulativeBytesLoaded /
                         loadingProgress.expectedTotalBytes!
                     : null,
+                color: primaryColor,
               ),
             ),
           );
@@ -220,13 +218,10 @@ class _SearchPageState extends State<SearchPage> {
   void _performSearch(String query) {
     setState(() {
       if (query.isEmpty) {
-        // Show all products from API, fallback to itemC if no products
-        _searchResults = _allProducts.isNotEmpty
-            ? _allProducts.map((product) => _productToItemModel(product)).toList()
-            : itemC;
+        // Show all products from API only
+        _searchResults = _allProducts.map((product) => _productToItemModel(product)).toList();
         _isSearching = false;
       } else {
-        // Search through API products, fallback to itemC if no products
         if (_allProducts.isNotEmpty) {
           _searchResults = _allProducts
               .where(
@@ -237,14 +232,7 @@ class _SearchPageState extends State<SearchPage> {
               .map((product) => _productToItemModel(product))
               .toList();
         } else {
-          // Fallback to itemC if API products not loaded
-          _searchResults = itemC
-              .where(
-                (item) =>
-                    item.name.toLowerCase().contains(query.toLowerCase()) ||
-                    item.description.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList();
+          _searchResults = [];
         }
         _isSearching = true;
       }
@@ -375,7 +363,7 @@ class _SearchPageState extends State<SearchPage> {
                               crossAxisCount: 2,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
-                              childAspectRatio: 0.75,
+                              childAspectRatio: 0.68,
                             ),
                         itemCount: _searchResults.length,
                         itemBuilder: (context, index) {
@@ -398,9 +386,12 @@ class _SearchPageState extends State<SearchPage> {
                           
                           return Consumer2<CartService, WishlistService>(
                             builder: (context, cartService, wishlistService, child) {
-                              final isInWishlist = wishlistService.isInWishlist(
-                                item,
-                              );
+                              final isInWishlist = productId != null
+                                  ? wishlistService.isInWishlist(productId)
+                                  : false;
+                              final isToggling = productId != null
+                                  ? wishlistService.isToggling(productId)
+                                  : false;
 
                               return InkWell(
                                 onTap: () {
@@ -453,60 +444,70 @@ class _SearchPageState extends State<SearchPage> {
                                             Positioned(
                                               top: 8,
                                               right: 8,
-                                              child: InkWell(
-                                                onTap: () {
-                                                  wishlistService.toggleWishlist(
-                                                    item,
-                                                  );
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        isInWishlist
-                                                            ? "${item.name} removed from wishlist"
-                                                            : "${item.name} added to wishlist",
-                                                      ),
-                                                      duration: const Duration(
-                                                        seconds: 1,
-                                                      ),
-                                                      backgroundColor: primaryColor,
-                                                      behavior:
-                                                          SnackBarBehavior.floating,
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              10,
+                                              child: productId != null
+                                                  ? InkWell(
+                                                      onTap: () async {
+                                                        try {
+                                                          await wishlistService.toggleWishlist(productId);
+                                                          if (mounted) {
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(
+                                                                content: Text(
+                                                                  isInWishlist
+                                                                      ? "${item.name} removed from wishlist"
+                                                                      : "${item.name} added to wishlist",
+                                                                ),
+                                                                duration: const Duration(seconds: 1),
+                                                                backgroundColor: primaryColor,
+                                                                behavior: SnackBarBehavior.floating,
+                                                                shape: RoundedRectangleBorder(
+                                                                  borderRadius: BorderRadius.circular(10),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          }
+                                                        } catch (e) {
+                                                          if (mounted) {
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(
+                                                                content: Text('Wishlist: ${e.toString()}'),
+                                                                backgroundColor: Colors.red,
+                                                                behavior: SnackBarBehavior.floating,
+                                                              ),
+                                                            );
+                                                          }
+                                                        }
+                                                      },
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(6),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white,
+                                                          shape: BoxShape.circle,
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors.black.withOpacity(0.1),
+                                                              blurRadius: 4,
+                                                              offset: const Offset(0, 2),
                                                             ),
+                                                          ],
+                                                        ),
+                                                        child: isToggling
+                                                            ? SizedBox(
+                                                                width: 18,
+                                                                height: 18,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  color: Colors.grey[700],
+                                                                ),
+                                                              )
+                                                            : Icon(
+                                                                isInWishlist ? Icons.favorite : Icons.favorite_border,
+                                                                color: isInWishlist ? Colors.red : Colors.grey[700],
+                                                                size: 18,
+                                                              ),
                                                       ),
-                                                    ),
-                                                  );
-                                                },
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(6),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.white,
-                                                    shape: BoxShape.circle,
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.1),
-                                                        blurRadius: 4,
-                                                        offset: const Offset(0, 2),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: Icon(
-                                                    isInWishlist
-                                                        ? Icons.favorite
-                                                        : Icons.favorite_border,
-                                                    color: isInWishlist
-                                                        ? Colors.red
-                                                        : Colors.grey[700],
-                                                    size: 18,
-                                                  ),
-                                                ),
-                                              ),
+                                                    )
+                                                  : const SizedBox.shrink(),
                                             ),
                                           ],
                                         ),
@@ -515,7 +516,12 @@ class _SearchPageState extends State<SearchPage> {
                                       Expanded(
                                         flex: 2,
                                         child: Padding(
-                                          padding: const EdgeInsets.all(12),
+                                          padding: const EdgeInsets.fromLTRB(
+                                            14,
+                                            12,
+                                            14,
+                                            12,
+                                          ),
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
@@ -524,15 +530,18 @@ class _SearchPageState extends State<SearchPage> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Flexible(
-                                                child: Text(
-                                                  item.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.black87,
+                                                child: Padding(
+                                                  padding: const EdgeInsets.only(bottom: 6),
+                                                  child: Text(
+                                                    item.name,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
@@ -560,25 +569,54 @@ class _SearchPageState extends State<SearchPage> {
                                               ),
                                               const SizedBox(height: 4),
                                               Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.spaceBetween,
-                                                mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Flexible(
-                                                    child: Text(
-                                                      "₺${item.price}",
-                                                      style: TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: primaryColor,
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
+                                                  Expanded(
+                                                    child: Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                                                      textBaseline: TextBaseline.alphabetic,
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Flexible(
+                                                          child: Text(
+                                                            "₺${item.price}",
+                                                            style: TextStyle(
+                                                              fontSize: 16,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: primaryColor,
+                                                            ),
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 6),
+                                                        Flexible(
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.amber.shade100,
+                                                              borderRadius: BorderRadius.circular(6),
+                                                            ),
+                                                            child: Text(
+                                                              "1${product.unitType}",
+                                                              style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                                                              overflow: TextOverflow.ellipsis,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
+                                                  const SizedBox(width: 8),
                                                   InkWell(
                                                     onTap: () async {
+                                                      final pid = productId ?? -index;
+                                                      if (_addingProductId == pid) return;
+                                                      setState(() => _addingProductId = pid);
                                                       try {
-                                                        await cartService.addToCart(item);
+                                                        if (productId != null) {
+                                                          await cartService.addToCartByProductId(productId);
+                                                        } else {
+                                                          await cartService.addToCart(item);
+                                                        }
                                                         if (mounted) {
                                                           ScaffoldMessenger.of(
                                                             context,
@@ -633,6 +671,8 @@ class _SearchPageState extends State<SearchPage> {
                                                             ),
                                                           );
                                                         }
+                                                      } finally {
+                                                        if (mounted) setState(() => _addingProductId = null);
                                                       }
                                                     },
                                                     child: Container(
@@ -645,10 +685,21 @@ class _SearchPageState extends State<SearchPage> {
                                                               8,
                                                             ),
                                                       ),
-                                                      child: const Icon(
-                                                        Icons.add,
-                                                        color: Colors.white,
-                                                        size: 18,
+                                                      child: Center(
+                                                        child: _addingProductId == (productId ?? -index)
+                                                            ? const SizedBox(
+                                                                width: 18,
+                                                                height: 18,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  color: Colors.white,
+                                                                ),
+                                                              )
+                                                            : const Icon(
+                                                                Icons.add,
+                                                                color: Colors.white,
+                                                                size: 18,
+                                                              ),
                                                       ),
                                                     ),
                                                   ),
@@ -673,7 +724,7 @@ class _SearchPageState extends State<SearchPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Recent searches
+                  // Recent searches (only when we have data from backend)
                   if (_recentSearches.isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -736,7 +787,7 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  // Categories section
+                  // Categories (from backend only)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
@@ -750,32 +801,28 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 12),
                   _isLoadingCategories
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: CircularProgressIndicator(),
+                      ? const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(color: primaryColor),
+                            ),
                           ),
                         )
-                      : _categories.isEmpty && _hasCategoryError
+                      : _categories.isEmpty
                           ? const SizedBox.shrink()
                           : SizedBox(
-                              height: 100,
+                              height: 130,
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                                itemCount: _categories.isEmpty ? fcategory.length : _categories.length,
+                                itemCount: _categories.length,
                                 itemBuilder: (context, index) {
-                                  // Use API categories if available, otherwise fallback to default
-                                  final category = _categories.isEmpty
-                                      ? fcategory[index]
-                                      : null;
-                                  final categoryModel = _categories.isEmpty
-                                      ? null
-                                      : _categories[index];
-                                  
-                                  final categoryName = categoryModel?.name ?? category?.name ?? '';
-                                  final categoryImage = categoryModel?.image ?? category?.image ?? '';
-                                  final categoryId = categoryModel?.id ?? 0;
+                                  final categoryModel = _categories[index];
+                                  final categoryName = categoryModel.name;
+                                  final categoryImage = categoryModel.image;
+                                  final categoryId = categoryModel.id;
 
                                   return InkWell(
                                     onTap: () {
@@ -792,7 +839,7 @@ class _SearchPageState extends State<SearchPage> {
                                     child: Container(
                                       width: 80,
                                       margin: EdgeInsets.only(
-                                        right: index == (_categories.isEmpty ? fcategory.length : _categories.length) - 1 ? 0 : 12,
+                                        right: index == _categories.length - 1 ? 0 : 12,
                                       ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
@@ -820,13 +867,14 @@ class _SearchPageState extends State<SearchPage> {
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(height: 8),
-                                          Flexible(
+                                          const SizedBox(height: 10),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
                                             child: Text(
                                               categoryName,
                                               style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
                                                 color: uberBlack,
                                               ),
                                               textAlign: TextAlign.center,
@@ -841,191 +889,6 @@ class _SearchPageState extends State<SearchPage> {
                                 },
                               ),
                             ),
-                  const SizedBox(height: 24),
-                  // Order again section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      "Order again",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 110,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: 4,
-                      itemBuilder: (context, index) {
-                        final restaurants = [
-                          {'name': 'Burger King', 'time': '10 min', 'image': 'assets/cafe.png'},
-                          {'name': 'Taco Bell', 'time': '10 min', 'image': 'assets/tomate.png'},
-                          {'name': 'Panera', 'time': '13 min', 'image': 'assets/fanta.png'},
-                          {'name': "McDonald's®", 'time': '10 min', 'image': 'assets/egg.png'},
-                        ];
-                        final restaurant = restaurants[index];
-                        // Find matching product from itemC
-                        final matchingProduct = itemC.firstWhere(
-                          (item) => item.image == restaurant['image'],
-                          orElse: () => itemC[0],
-                        );
-                        
-                        return InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => Detail(ecom: matchingProduct),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 100,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    image: DecorationImage(
-                                      image: AssetImage(restaurant['image'] as String),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Flexible(
-                                  child: Text(
-                                    restaurant['name'] as String,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  restaurant['time'] as String,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Make breakfast at home section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      "Make breakfast at home",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 110,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: 5,
-                      itemBuilder: (context, index) {
-                        final groceries = [
-                          {'name': 'Milk', 'image': 'assets/Peak.jpeg'},
-                          {'name': 'Cereal', 'image': 'assets/cornflake.png'},
-                          {'name': 'Butter', 'image': 'assets/eker.png'},
-                          {'name': 'Orange juice', 'image': 'assets/fanta.png'},
-                          {'name': 'Yogurt', 'image': 'assets/labne.png'},
-                        ];
-                        final grocery = groceries[index];
-                        // Find matching product from itemC
-                        final matchingProduct = itemC.firstWhere(
-                          (item) => item.image == grocery['image'],
-                          orElse: () => itemC[0],
-                        );
-                        
-                        return InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => Detail(ecom: matchingProduct),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 100,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    image: DecorationImage(
-                                      image: _buildImageProvider(grocery['image'] as String),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Flexible(
-                                  child: Text(
-                                    grocery['name'] as String,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Top categories
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      "Top categories",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 100),
                 ],
               ),
             ),

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/presentation/home.dart';
@@ -8,7 +6,6 @@ import 'package:vlog/presentation/auth/register_page.dart';
 import 'package:vlog/presentation/auth/forgot_password_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 // Design colors: red & white
 const Color _primaryRed = Color(0xFFD32F2F);
@@ -170,46 +167,27 @@ class _LoginPageState extends State<LoginPage>
 
   Future<void> _signInWithApple() async {
     try {
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
+      await AuthService.signInWithApple();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Apple sign-in successful'), backgroundColor: Colors.green),
       );
-
-      final oauthCredential = OAuthProvider("apple.com").credential(
-        idToken: appleCredential.identityToken,
-        accessToken: appleCredential.authorizationCode,
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainScreen(token: null),
+        ),
       );
-
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
-
-      if (userCredential.user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', userCredential.user!.uid);
-        await prefs.setString('auth_user', jsonEncode({
-          'id': userCredential.user!.uid,
-          'email': userCredential.user!.email ?? appleCredential.email,
-          'name': userCredential.user!.displayName ?? 
-                  '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim(),
-        }));
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Apple sign-in successful')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MainScreen(token: userCredential.user!.uid),
-          ),
-        );
-      }
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Apple sign-in failed: ${e.message}'), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Apple sign-in failed: ${e.toString()}')),
+        SnackBar(content: Text('Apple sign-in failed: ${e.toString()}'), backgroundColor: Colors.red),
       );
     }
   }
@@ -345,19 +323,19 @@ class _LoginPageState extends State<LoginPage>
               ),
 
               // —— or ——
-              FadeTransition(
-                opacity: _slideOr,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Text(
-                    'or',
-                    style: TextStyle(
-                      color: _lightGrey,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
+              // FadeTransition(
+              //   opacity: _slideOr,
+              //   child: Padding(
+              //     padding: const EdgeInsets.symmetric(vertical: 20),
+              //     child: Text(
+              //       'or',
+              //       style: TextStyle(
+              //         color: _lightGrey,
+              //         fontSize: 15,
+              //       ),
+              //     ),
+              //   ),
+              // ),
 
               // —— Social login icons (Google, Apple) ——
               SlideTransition(
@@ -368,21 +346,21 @@ class _LoginPageState extends State<LoginPage>
                 child: FadeTransition(
                   opacity: _slideSocial,
                   child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                    _SocialIcon(
-                      icon: Icons.g_mobiledata,
-                      color: const Color(0xFF4285F4),
-                      onTap: _signInWithGoogle,
-                    ),
-                    const SizedBox(width: 20),
-                    _SocialIcon(
-                      icon: Icons.apple,
-                      color: Colors.black,
-                      onTap: _signInWithApple,
-                    ),
-                  ],
-                ),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _SocialIcon(
+                        icon: Icons.g_mobiledata,
+                        color: const Color(0xFF4285F4),
+                        onTap: _signInWithGoogle,
+                      ),
+                      const SizedBox(width: 20),
+                      _SocialIcon(
+                        icon: Icons.apple,
+                        color: Colors.black,
+                        onTap: _signInWithApple,
+                      ),
+                    ],
+                  ),
                 ),
               ),
 

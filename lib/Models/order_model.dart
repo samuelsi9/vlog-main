@@ -1,3 +1,5 @@
+import 'package:vlog/Utils/parse_utils.dart';
+
 enum OrderStatus {
   pending,
   confirmed,
@@ -72,12 +74,12 @@ class Order {
       storeName: map['storeName']?.toString() ?? map['restaurantName']?.toString() ?? '',
       storeImage: map['storeImage']?.toString() ?? map['restaurantImage']?.toString(),
       items: (map['items'] as List? ?? [])
-          .map((item) => OrderItem.fromMap(item))
+          .map((item) => OrderItem.fromMap(item is Map<String, dynamic> ? item : Map<String, dynamic>.from(item)))
           .toList(),
-      subtotal: (map['subtotal'] ?? 0.0).toDouble(),
-      shippingFee: (map['shippingFee'] ?? map['deliveryFee'] ?? 0.0).toDouble(),
-      tax: (map['tax'] ?? 0.0).toDouble(),
-      total: (map['total'] ?? 0.0).toDouble(),
+      subtotal: parseDouble(map['subtotal']),
+      shippingFee: parseDouble(map['shippingFee'] ?? map['deliveryFee']),
+      tax: parseDouble(map['tax']),
+      total: parseDouble(map['total']),
       status: OrderStatus.values.firstWhere(
         (e) => e.toString() == 'OrderStatus.${map['status']}',
         orElse: () => OrderStatus.pending,
@@ -139,8 +141,8 @@ class OrderItem {
     return OrderItem(
       productId: map['productId']?.toString() ?? map['menuItemId']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
-      price: (map['price'] ?? 0.0).toDouble(),
-      quantity: map['quantity'] ?? 1,
+      price: parseDouble(map['price']),
+      quantity: parseInt(map['quantity'], 1),
       imageUrl: map['imageUrl']?.toString(),
       selectedOptions: map['selectedOptions'] != null 
           ? Map<String, String>.from(map['selectedOptions'])
@@ -192,8 +194,8 @@ class DeliveryAddress {
       city: map['city']?.toString() ?? '',
       postalCode: map['postalCode']?.toString() ?? '',
       country: map['country']?.toString() ?? 'France',
-      latitude: map['latitude']?.toDouble(),
-      longitude: map['longitude']?.toDouble(),
+      latitude: map['latitude'] != null ? parseDouble(map['latitude']) : null,
+      longitude: map['longitude'] != null ? parseDouble(map['longitude']) : null,
       instructions: map['instructions']?.toString(),
     );
   }

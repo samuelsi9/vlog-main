@@ -31,7 +31,9 @@ class _DeliverySchedulePageState extends State<DeliverySchedulePage> {
     '7:00 PM - 9:00 PM',
   ];
 
-  // Get available time slots based on selected date and current time
+  // Get available time slots based on selected date and current time.
+  // A slot (e.g. 9:00 AM - 11:00 AM) is available if current time is BEFORE the slot's END time.
+  // Example: at 10:00, user can take 9-11 (still within window). At 11:00, 9-11 is no longer available.
   List<String> get _availableTimeSlots {
     if (_selectedDate == null) return _allTimeSlots;
     
@@ -43,30 +45,20 @@ class _DeliverySchedulePageState extends State<DeliverySchedulePage> {
       return _allTimeSlots;
     }
     
-    // If today, filter out past time slots
+    // If today, filter out slots whose end time has passed
     final currentHour = now.hour;
     final currentMinute = now.minute;
     
     return _allTimeSlots.where((slot) {
-      // Extract start hour from time slot (e.g., "9:00 AM" from "9:00 AM - 11:00 AM")
-      final startTimeStr = slot.split(' - ')[0];
-      final slotHour = _parseTimeTo24Hour(startTimeStr);
+      // Extract END hour from time slot (e.g., "11:00 AM" from "9:00 AM - 11:00 AM")
+      final endTimeStr = slot.split(' - ')[1];
+      final slotEndHour = _parseTimeTo24Hour(endTimeStr);
+      final minutesMatch = RegExp(r':(\d+)').firstMatch(endTimeStr);
+      final slotEndMinute = minutesMatch != null ? int.parse(minutesMatch.group(1)!) : 0;
       
-      // If slot hour is greater than current hour, it's available
-      if (slotHour > currentHour) {
-        return true;
-      }
-      
-      // If slot hour equals current hour, check minutes
-      if (slotHour == currentHour) {
-        // Extract minutes from time string (default to 0 if not specified)
-        final minutesMatch = RegExp(r':(\d+)').firstMatch(startTimeStr);
-        final slotMinutes = minutesMatch != null ? int.parse(minutesMatch.group(1)!) : 0;
-        
-        // Only show if slot minutes are in the future
-        return slotMinutes > currentMinute;
-      }
-      
+      // Slot is available if current time is strictly before the slot end time
+      if (currentHour < slotEndHour) return true;
+      if (currentHour == slotEndHour) return currentMinute < slotEndMinute;
       return false;
     }).toList();
   }
@@ -157,7 +149,8 @@ class _DeliverySchedulePageState extends State<DeliverySchedulePage> {
         date.day == now.day;
   }
 
-  // Get available time slots for a specific date
+  // Get available time slots for a specific date.
+  // A slot is available if current time is before the slot's END time.
   List<String> _getAvailableTimeSlotsForDate(DateTime date) {
     final now = DateTime.now();
     final isToday = _isToday(date);
@@ -167,27 +160,18 @@ class _DeliverySchedulePageState extends State<DeliverySchedulePage> {
       return _allTimeSlots;
     }
     
-    // If today, filter out past time slots
+    // If today, filter out slots whose end time has passed
     final currentHour = now.hour;
     final currentMinute = now.minute;
     
     return _allTimeSlots.where((slot) {
-      // Extract start hour from time slot
-      final startTimeStr = slot.split(' - ')[0];
-      final slotHour = _parseTimeTo24Hour(startTimeStr);
+      final endTimeStr = slot.split(' - ')[1];
+      final slotEndHour = _parseTimeTo24Hour(endTimeStr);
+      final minutesMatch = RegExp(r':(\d+)').firstMatch(endTimeStr);
+      final slotEndMinute = minutesMatch != null ? int.parse(minutesMatch.group(1)!) : 0;
       
-      // If slot hour is greater than current hour, it's available
-      if (slotHour > currentHour) {
-        return true;
-      }
-      
-      // If slot hour equals current hour, check minutes
-      if (slotHour == currentHour) {
-        final minutesMatch = RegExp(r':(\d+)').firstMatch(startTimeStr);
-        final slotMinutes = minutesMatch != null ? int.parse(minutesMatch.group(1)!) : 0;
-        return slotMinutes > currentMinute;
-      }
-      
+      if (currentHour < slotEndHour) return true;
+      if (currentHour == slotEndHour) return currentMinute < slotEndMinute;
       return false;
     }).toList();
   }

@@ -1,3 +1,19 @@
+/// Parses numeric value from JSON (handles int, double, or string from Laravel).
+double _cartToDouble(dynamic v) {
+  if (v == null) return 0.0;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v) ?? 0.0;
+  return 0.0;
+}
+
+int _cartToInt(dynamic v) {
+  if (v == null) return 0;
+  if (v is int) return v;
+  if (v is double) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? 0;
+  return 0;
+}
+
 class CartItemModel {
   final int id;
   final int productId;
@@ -6,6 +22,7 @@ class CartItemModel {
   final int quantity;
   final double subtotal;
   final String? image;
+  final String? unitType; // e.g. "kg", "piece" - from product
 
   CartItemModel({
     required this.id,
@@ -15,17 +32,61 @@ class CartItemModel {
     required this.quantity,
     required this.subtotal,
     this.image,
+    this.unitType,
   });
 
+  static String? _parseImage(Map<String, dynamic> map) {
+    String? fromVal(dynamic v) {
+      if (v == null) return null;
+      if (v is String) {
+        final s = v.trim();
+        return s.isEmpty ? null : s;
+      }
+      if (v is Map<String, dynamic>) {
+        for (final k in ['src', 'url', 'path']) {
+          final s = fromVal(v[k]);
+          if (s != null) return s;
+        }
+      }
+      if (v is List && v.isNotEmpty) {
+        return fromVal(v.first);
+      }
+      return v.toString().trim().isEmpty ? null : v.toString().trim();
+    }
+    // Top-level fields
+    for (final key in ['image', 'image_url', 'photo', 'thumbnail']) {
+      final s = fromVal(map[key]);
+      if (s != null) return s;
+    }
+    // Nested under product
+    if (map['product'] is Map) {
+      final p = map['product'] as Map<String, dynamic>;
+      for (final key in ['image', 'image_url', 'photo', 'thumbnail', 'images']) {
+        final s = fromVal(p[key]);
+        if (s != null) return s;
+      }
+    }
+    return null;
+  }
+
   factory CartItemModel.fromMap(Map<String, dynamic> map) {
+    String? unitType;
+    if (map['unit_type'] != null) {
+      unitType = map['unit_type']?.toString().trim().toLowerCase();
+    } else if (map['product'] is Map) {
+      final p = map['product'] as Map<String, dynamic>;
+      unitType = p['unit_type']?.toString().trim().toLowerCase();
+    }
+    final image = _parseImage(map);
     return CartItemModel(
-      id: map['id'] as int? ?? 0,
-      productId: map['product_id'] as int? ?? 0,
-      name: map['name'] as String? ?? '',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      quantity: map['quantity'] as int? ?? 1,
-      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0.0,
-      image: map['image'] as String?,
+      id: _cartToInt(map['id']),
+      productId: _cartToInt(map['product_id']),
+      name: map['name']?.toString() ?? '',
+      price: _cartToDouble(map['price']),
+      quantity: _cartToInt(map['quantity']).clamp(1, 999),
+      subtotal: _cartToDouble(map['subtotal']),
+      image: image,
+      unitType: unitType,
     );
   }
 
@@ -76,16 +137,19 @@ class CartModel {
   });
 
   factory CartModel.fromMap(Map<String, dynamic> map) {
-    final itemsList = map['items'] as List<dynamic>? ?? [];
+    var itemsList = map['items'] as List<dynamic>?;
+    if (itemsList == null || itemsList.isEmpty) {
+      itemsList = map['cart_items'] as List<dynamic>? ?? [];
+    }
     final cartItems = itemsList
         .map((item) => CartItemModel.fromMap(item as Map<String, dynamic>))
         .toList();
 
     return CartModel(
-      cartId: map['cart_id'] as int? ?? 0,
+      cartId: _cartToInt(map['cart_id']),
       items: cartItems,
-      deliveryFee: (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
-      total: (map['total'] as num?)?.toDouble() ?? 0.0,
+      deliveryFee: _cartToDouble(map['delivery_fee']),
+      total: _cartToDouble(map['total']),
     );
   }
 

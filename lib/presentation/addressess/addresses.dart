@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/presentation/home.dart';
 import 'package:vlog/presentation/addressess/userLocation.dart';
+import 'package:vlog/Utils/api_exception.dart';
 const Color _purplePrimary = Color(0xFF7C4DFF);
 
 class Addresses extends StatefulWidget {
@@ -13,10 +14,7 @@ class Addresses extends StatefulWidget {
 
 class _AddressesState extends State<Addresses> {
   final _formKey = GlobalKey<FormState>();
-  final streetController = TextEditingController();
   final buildingNumberController = TextEditingController();
-  final apartmentNumberController = TextEditingController();
-  final cityController = TextEditingController();
   bool isDefault = false;
   bool _isLoading = false;
   bool _isGettingLocation = false;
@@ -25,10 +23,7 @@ class _AddressesState extends State<Addresses> {
 
   @override
   void dispose() {
-    streetController.dispose();
     buildingNumberController.dispose();
-    apartmentNumberController.dispose();
-    cityController.dispose();
     super.dispose();
   }
 
@@ -54,13 +49,14 @@ class _AddressesState extends State<Addresses> {
     try {
       final auth = AuthService();
       await auth.createAddress(
-        street: streetController.text.trim(),
+        street: 'for now not yet',
         buildingNumber: buildingNumberController.text.trim(),
-        apartmentNumber: apartmentNumberController.text.trim(),
-        city: cityController.text.trim(),
+        apartmentNumber: 'for now not yet',
+        city: 'for now not yet',
         latitude: _currentLat!,
         longitude: _currentLng!,
         isDefault: isDefault,
+        label: 'Home',
         addressType: 'Home',
       );
       if (!mounted) return;
@@ -76,12 +72,19 @@ class _AddressesState extends State<Addresses> {
           builder: (_) => MainScreen(token: null),
         ),
       );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(UserErrorMapper.toUserMessage(e)),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       String message = 'Failed to save address';
-      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-        message = 'Please login again';
-      } else if (e.toString().contains('network') ||
+      if (e.toString().contains('network') ||
           e.toString().contains('Network') ||
           e.toString().contains('SocketException')) {
         message = 'Network error. Please check your connection.';
@@ -169,31 +172,10 @@ class _AddressesState extends State<Addresses> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _field(
-                controller: streetController,
-                label: 'street',
-                hint: 'e.g. qqaa ila',
-                validator: (v) => _validateRequired(v, 'street'),
-              ),
-              const SizedBox(height: 16),
-              _field(
                 controller: buildingNumberController,
-                label: 'building_number',
+                label: 'building_name',
                 hint: 'e.g. Well wwwarir',
                 validator: (v) => _validateRequired(v, 'building_number'),
-              ),
-              const SizedBox(height: 16),
-              _field(
-                controller: apartmentNumberController,
-                label: 'apartment_number',
-                hint: 'e.g. wall 678',
-                validator: (v) => _validateRequired(v, 'apartment_number'),
-              ),
-              const SizedBox(height: 16),
-              _field(
-                controller: cityController,
-                label: 'city',
-                hint: 'e.g. Girne',
-                validator: (v) => _validateRequired(v, 'city'),
               ),
               const SizedBox(height: 24),
               // Use current location – like real delivery apps

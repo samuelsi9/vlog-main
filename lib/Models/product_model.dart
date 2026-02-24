@@ -1,3 +1,5 @@
+import 'package:vlog/Utils/parse_utils.dart';
+
 class ProductModel {
   final int id;
   final String name;
@@ -8,6 +10,7 @@ class ProductModel {
   final int subcategoryId;
   final String createdAt;
   final double rating; // Rating with default value
+  final String unitType; // e.g. "piece", "kg", "liter"
 
   ProductModel({
     required this.id,
@@ -19,19 +22,40 @@ class ProductModel {
     required this.subcategoryId,
     required this.createdAt,
     this.rating = 4.0, // Default rating value
+    this.unitType = 'piece',
   });
+
+  /// Parses numeric value from JSON (handles int, double, or string from Laravel).
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
+  }
+
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
 
   factory ProductModel.fromMap(Map<String, dynamic> map) {
     return ProductModel(
-      id: map['id'] as int? ?? 0,
-      name: map['name'] as String? ?? '',
-      description: map['description'] as String? ?? '',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      image: map['image'] as String? ?? '',
-      categoryId: map['category_id'] as int? ?? 0,
-      subcategoryId: map['subcategory_id'] as int? ?? 0,
-      createdAt: map['created_at'] as String? ?? '',
-      rating: (map['rating'] as num?)?.toDouble() ?? 4.0, // Default to 4.0 if not provided
+      id: _toInt(map['id']),
+      name: map['name']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+      price: _toDouble(map['price']),
+      image: map['image']?.toString() ?? '',
+      categoryId: _toInt(map['category_id']),
+      subcategoryId: _toInt(map['subcategory_id']),
+      createdAt: map['created_at']?.toString() ?? '',
+      rating: () {
+        final r = _toDouble(map['rating']);
+        return r > 0 ? r.clamp(0.0, 5.0) : 4.0;
+      }(),
+      unitType: map['unit_type']?.toString().trim().toLowerCase() ?? 'piece',
     );
   }
 
@@ -46,6 +70,7 @@ class ProductModel {
       'subcategory_id': subcategoryId,
       'created_at': createdAt,
       'rating': rating,
+      'unit_type': unitType,
     };
   }
 }
@@ -96,13 +121,13 @@ class PaginationMeta {
 
   factory PaginationMeta.fromMap(Map<String, dynamic> map) {
     return PaginationMeta(
-      currentPage: map['current_page'] as int? ?? 1,
-      from: map['from'] as int? ?? 1,
-      lastPage: map['last_page'] as int? ?? 1,
-      path: map['path'] as String? ?? '',
-      perPage: map['per_page'] as int? ?? 10,
-      to: map['to'] as int? ?? 10,
-      total: map['total'] as int? ?? 0,
+      currentPage: parseInt(map['current_page'], 1).clamp(1, 999),
+      from: parseInt(map['from'], 1).clamp(1, 999),
+      lastPage: parseInt(map['last_page'], 1).clamp(1, 999),
+      path: map['path']?.toString() ?? '',
+      perPage: parseInt(map['per_page'], 10).clamp(1, 100),
+      to: parseInt(map['to']),
+      total: parseInt(map['total']),
     );
   }
 }
@@ -146,6 +171,7 @@ List<ProductModel> getDefaultProducts() {
       subcategoryId: 1,
       createdAt: DateTime.now().toIso8601String(),
       rating: 4.5,
+      unitType: 'piece',
     ),
     ProductModel(
       id: 2,
@@ -157,6 +183,7 @@ List<ProductModel> getDefaultProducts() {
       subcategoryId: 2,
       createdAt: DateTime.now().toIso8601String(),
       rating: 4.2,
+      unitType: 'piece',
     ),
     ProductModel(
       id: 3,

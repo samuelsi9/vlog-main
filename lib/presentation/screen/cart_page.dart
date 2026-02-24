@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/parse_utils.dart';
+import 'package:vlog/Utils/delivery_fee_utils.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/presentation/addressess/choiceAddress.dart';
 
 // Color scheme
 const Color primaryColor = Color(0xFFE53E3E);
 const Color uberBlack = Color(0xFF000000);
+const Color priceRed = Color(0xFFE57373); // rouge clair
 
 // Model for vendor/store cart
 class VendorCart {
@@ -43,6 +47,7 @@ class _CartPageState extends State<CartPage> {
   bool _isCheckingAuth = true;
   bool _isAuthenticated = false;
   String _displayName = 'Guest user';
+  int? _updatingCartItemId; // cartItemId being updated (quantity +/-)
 
   @override
   void initState() {
@@ -99,8 +104,12 @@ class _CartPageState extends State<CartPage> {
       );
     }
 
-    // Trim whitespace and check for network URLs
-    final trimmedUrl = imageUrl.trim();
+    // Trim whitespace; prepend base URL for API relative paths
+    String trimmedUrl = imageUrl.trim();
+    if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+      final base = AuthService().baseUrl;
+      trimmedUrl = base.endsWith('/') ? '$base${trimmedUrl.substring(1)}' : '$base$trimmedUrl';
+    }
     final isNetworkImage = trimmedUrl.startsWith('http://') || 
                            trimmedUrl.startsWith('https://') ||
                            trimmedUrl.startsWith('www.') ||
@@ -124,6 +133,7 @@ class _CartPageState extends State<CartPage> {
                     ? loadingProgress.cumulativeBytesLoaded /
                         loadingProgress.expectedTotalBytes!
                     : null,
+                color: primaryColor,
               ),
             ),
           );
@@ -219,9 +229,7 @@ class _CartPageState extends State<CartPage> {
         ],
       ),
       body: _isCheckingAuth
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? Center(child: CircularProgressIndicator(color: primaryColor))
           : !_isAuthenticated
               ? Center(
                   child: Padding(
@@ -284,9 +292,7 @@ class _CartPageState extends State<CartPage> {
                   builder: (context, cartService, child) {
                     // Show loading if fetching cart
                     if (cartService.isLoading && cartService.cartItems.isEmpty) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
+                      return Center(child: CircularProgressIndicator(color: primaryColor));
                     }
 
           // Show error if exists
@@ -370,35 +376,56 @@ class _CartPageState extends State<CartPage> {
           }
 
           final currentTotal = cartItems.fold(0.0, (sum, item) => sum + item.totalPrice);
-          const double deliveryFee = 250;
+          final double deliveryFee = calculateDeliveryFee(currentTotal);
+          final double totalWithFee = currentTotal + deliveryFee;
 
           return Column(
             children: [
               Expanded(
                 child: ListView.builder(
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                   itemCount: cartItems.length,
                   itemBuilder: (context, index) {
                     final cartItem = cartItems[index];
                     final item = cartItem.item;
                     final itemTotal = item.price * cartItem.quantity;
 
-                    return Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: _buildImage(
-                                  item.image,
-                                  width: 80,
-                                  height: 80,
+                              ClipOval(
+                                child: SizedBox(
+                                  width: 72,
+                                  height: 72,
+                                  child: _buildImage(
+                                    item.image,
+                                    width: 72,
+                                    height: 72,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,7 +441,7 @@ class _CartPageState extends State<CartPage> {
                                               fontSize: 16,
                                               color: uberBlack,
                                               letterSpacing: -0.3,
-                                              height: 1.3,
+                                              height: 1.25,
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
@@ -447,175 +474,181 @@ class _CartPageState extends State<CartPage> {
                                                 }
                                               }
                                             },
-                                            borderRadius: BorderRadius.circular(20),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(8),
+                                            customBorder: const CircleBorder(),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(6),
                                               child: Icon(
                                                 Icons.delete_outline,
                                                 size: 20,
-                                                color: Colors.red[400],
+                                                color: Colors.grey[500],
                                               ),
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 4),
                                     Text(
                                       "₺${item.price}",
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 15,
+                                      style: const TextStyle(
+                                        color: priceRed,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: Colors.grey[300]!,
-                                              width: 1.5,
-                                            ),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Material(
-                                                color: Colors.transparent,
-                                                child: InkWell(
-                                                  onTap: () async {
-                                                    try {
-                                                      if (cartItem.quantity > 1) {
-                                                        await cartService.updateQuantity(
-                                                          cartItem,
-                                                          cartItem.quantity - 1,
-                                                        );
-                                                        await cartService.fetchCart();
-                                                      } else {
-                                                        if (context.mounted) {
-                                                          ScaffoldMessenger.of(context).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text('You cannot decrease, you have just one'),
-                                                              backgroundColor: Colors.orange,
-                                                              duration: Duration(seconds: 2),
-                                                            ),
-                                                          );
-                                                        }
-                                                        await cartService.removeFromCart(cartItem);
-                                                        await cartService.fetchCart();
-                                                      }
-                                                    } catch (e) {
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(
-                                                            content: Text('Failed to update: ${e.toString()}'),
-                                                            backgroundColor: Colors.red,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  },
-                                                  borderRadius: const BorderRadius.only(
-                                                    topLeft: Radius.circular(8),
-                                                    bottomLeft: Radius.circular(8),
-                                                  ),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.remove,
-                                                      size: 16,
-                                                      color: cartItem.quantity > 1
-                                                          ? uberBlack
-                                                          : Colors.grey[400],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 14),
-                                                child: Text(
-                                                  "${cartItem.quantity}",
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: uberBlack,
-                                                  ),
-                                                ),
-                                              ),
-                                              Material(
-                                                color: Colors.transparent,
-                                                child: InkWell(
-                                                  onTap: () async {
-                                                    try {
-                                                      await cartService.updateQuantity(
-                                                        cartItem,
-                                                        cartItem.quantity + 1,
-                                                      );
-                                                      await cartService.fetchCart();
-                                                    } catch (e) {
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(
-                                                            content: Text('Failed to update: ${e.toString()}'),
-                                                            backgroundColor: Colors.red,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  },
-                                                  borderRadius: const BorderRadius.only(
-                                                    topRight: Radius.circular(8),
-                                                    bottomRight: Radius.circular(8),
-                                                  ),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.add,
-                                                      size: 16,
-                                                      color: uberBlack,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                    if (cartItem.quantity > 1) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        "₺${itemTotal.toStringAsFixed(2)} total",
+                                        style: const TextStyle(
+                                          color: priceRed,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
                                         ),
-                                        const Spacer(),
-                                        Text(
-                                          "₺${itemTotal.toStringAsFixed(2)}",
-                                          style: const TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.bold,
-                                            color: uberBlack,
-                                            letterSpacing: -0.3,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ],
                                 ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Builder(
+                                    builder: (context) {
+                                      final isUpdating = cartItem.cartItemId != null &&
+                                          _updatingCartItemId == cartItem.cartItemId;
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () async {
+                                                if (cartItem.cartItemId != null) {
+                                                  setState(() => _updatingCartItemId = cartItem.cartItemId);
+                                                }
+                                                try {
+                                                  if (cartItem.quantity > 1) {
+                                                    await cartService.updateQuantity(
+                                                      cartItem,
+                                                      cartItem.quantity - 1,
+                                                    );
+                                                    await cartService.fetchCart();
+                                                  } else {
+                                                    if (context.mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text('You cannot decrease, you have just one'),
+                                                          backgroundColor: Colors.orange,
+                                                          duration: Duration(seconds: 2),
+                                                        ),
+                                                      );
+                                                    }
+                                                    await cartService.removeFromCart(cartItem);
+                                                    await cartService.fetchCart();
+                                                  }
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text('Failed to update: ${e.toString()}'),
+                                                        backgroundColor: Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                } finally {
+                                                  if (mounted) setState(() => _updatingCartItemId = null);
+                                                }
+                                              },
+                                              customBorder: const CircleBorder(),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(color: Colors.grey[300]!),
+                                                ),
+                                                child: Icon(
+                                                  Icons.remove,
+                                                  size: 16,
+                                                  color: cartItem.quantity > 1
+                                                      ? uberBlack
+                                                      : Colors.grey[400],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                                            child: isUpdating
+                                                ? const SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: uberBlack,
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    formatQtyWithUnit(cartItem.quantity, cartItem.unitType),
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: uberBlack,
+                                                    ),
+                                                    softWrap: false,
+                                                  ),
+                                          ),
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () async {
+                                                if (cartItem.cartItemId != null) {
+                                                  setState(() => _updatingCartItemId = cartItem.cartItemId);
+                                                }
+                                                try {
+                                                  await cartService.updateQuantity(
+                                                    cartItem,
+                                                    cartItem.quantity + 1,
+                                                  );
+                                                  await cartService.fetchCart();
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text('Failed to update: ${e.toString()}'),
+                                                        backgroundColor: Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                } finally {
+                                                  if (mounted) setState(() => _updatingCartItemId = null);
+                                                }
+                                              },
+                                              customBorder: const CircleBorder(),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(color: Colors.grey[300]!),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.add,
+                                                  size: 16,
+                                                  color: uberBlack,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        if (index < cartItems.length - 1)
-                          Divider(
-                            height: 1,
-                            thickness: 1,
-                            color: Colors.grey[200],
-                            indent: 20,
-                            endIndent: 20,
-                          ),
-                      ],
+                      ),
                     );
                   },
                 ),
@@ -649,9 +682,9 @@ class _CartPageState extends State<CartPage> {
                             ),
                             Text(
                               "₺${currentTotal.toStringAsFixed(2)}",
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 15,
-                                color: Colors.grey[800],
+                                color: priceRed,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -668,13 +701,20 @@ class _CartPageState extends State<CartPage> {
                                 color: Colors.grey[600],
                               ),
                             ),
-                            Text(
-                              "₺${deliveryFee.toStringAsFixed(0)}",
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
+                            Builder(
+                              builder: (_) {
+                                final pct = getDeliveryFeePercent(currentTotal);
+                                return Text(
+                                  pct != null
+                                      ? "₺${deliveryFee.toStringAsFixed(2)} (${pct.toStringAsFixed(0)}%)"
+                                      : "₺${deliveryFee.toStringAsFixed(2)}",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: priceRed,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -694,16 +734,18 @@ class _CartPageState extends State<CartPage> {
                               ),
                             ),
                             Text(
-                              "₺${(currentTotal + deliveryFee).toStringAsFixed(2)}",
-                              style: TextStyle(
+                              "₺${totalWithFee.toStringAsFixed(2)}",
+                              style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: primaryColor,
+                                color: priceRed,
                                 letterSpacing: -0.5,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        const _DeliveryFeeInfoBox(),
                         const SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
@@ -774,6 +816,8 @@ class _CartDetailPage extends StatefulWidget {
 }
 
 class _CartDetailPageState extends State<_CartDetailPage> {
+  int? _updatingCartItemId; // cartItemId being updated (quantity +/-)
+
   // Helper method to build image widget (handles both network and asset images)
   Widget _buildImage(String imageUrl, {double? height, double? width}) {
     if (imageUrl.isEmpty) {
@@ -789,8 +833,12 @@ class _CartDetailPageState extends State<_CartDetailPage> {
       );
     }
 
-    // Trim whitespace and check for network URLs
-    final trimmedUrl = imageUrl.trim();
+    // Trim whitespace; prepend base URL for API relative paths
+    String trimmedUrl = imageUrl.trim();
+    if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+      final base = AuthService().baseUrl;
+      trimmedUrl = base.endsWith('/') ? '$base${trimmedUrl.substring(1)}' : '$base$trimmedUrl';
+    }
     final isNetworkImage = trimmedUrl.startsWith('http://') || 
                            trimmedUrl.startsWith('https://') ||
                            trimmedUrl.startsWith('www.') ||
@@ -814,6 +862,7 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                     ? loadingProgress.cumulativeBytesLoaded /
                         loadingProgress.expectedTotalBytes!
                     : null,
+                color: primaryColor,
               ),
             ),
           );
@@ -927,29 +976,49 @@ class _CartDetailPageState extends State<_CartDetailPage> {
             children: [
               Expanded(
                 child: ListView.builder(
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                   itemCount: currentCartItems.length,
                   itemBuilder: (context, index) {
                     final cartItem = currentCartItems[index];
                     final item = cartItem.item;
                     final itemTotal = item.price * cartItem.quantity;
 
-                    return Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: _buildImage(
-                                  item.image,
-                                  width: 80,
-                                  height: 80,
+                              ClipOval(
+                                child: SizedBox(
+                                  width: 72,
+                                  height: 72,
+                                  child: _buildImage(
+                                    item.image,
+                                    width: 72,
+                                    height: 72,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -965,20 +1034,18 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                                               fontSize: 16,
                                               color: uberBlack,
                                               letterSpacing: -0.3,
-                                              height: 1.3,
+                                              height: 1.25,
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        // Delete button
                                         Material(
                                           color: Colors.transparent,
                                           child: InkWell(
                                             onTap: () async {
                                               try {
                                                 await cartService.removeFromCart(cartItem);
-                                                // Reload cart after deletion
                                                 await cartService.fetchCart();
                                                 if (context.mounted) {
                                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1000,182 +1067,181 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                                                 }
                                               }
                                             },
-                                            borderRadius: BorderRadius.circular(20),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(8),
+                                            customBorder: const CircleBorder(),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(6),
                                               child: Icon(
                                                 Icons.delete_outline,
                                                 size: 20,
-                                                color: Colors.red[400],
+                                                color: Colors.grey[500],
                                               ),
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 4),
                                     Text(
                                       "₺${item.price}",
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 15,
+                                      style: const TextStyle(
+                                        color: priceRed,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: Colors.grey[300]!,
-                                              width: 1.5,
-                                            ),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Material(
-                                                color: Colors.transparent,
-                                                child: InkWell(
-                                                  onTap: () async {
-                                                    try {
-                                                      if (cartItem.quantity > 1) {
-                                                        await cartService.updateQuantity(
-                                                          cartItem,
-                                                          cartItem.quantity - 1,
-                                                        );
-                                                        // Reload cart after update
-                                                        await cartService.fetchCart();
-                                                      } else {
-                                                        // If quantity is 1, show message and delete
-                                                        if (context.mounted) {
-                                                          ScaffoldMessenger.of(context).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text('You cannot decrease, you have just one'),
-                                                              backgroundColor: Colors.orange,
-                                                              duration: Duration(seconds: 2),
-                                                            ),
-                                                          );
-                                                        }
-                                                        // Delete the item
-                                                        await cartService.removeFromCart(cartItem);
-                                                        // Reload cart after deletion
-                                                        await cartService.fetchCart();
-                                                      }
-                                                    } catch (e) {
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(
-                                                            content: Text('Failed to update: ${e.toString()}'),
-                                                            backgroundColor: Colors.red,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  },
-                                                  borderRadius: const BorderRadius.only(
-                                                    topLeft: Radius.circular(8),
-                                                    bottomLeft: Radius.circular(8),
-                                                  ),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.remove,
-                                                      size: 16,
-                                                      color: cartItem.quantity > 1
-                                                          ? uberBlack
-                                                          : Colors.grey[400],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 14,
-                                                ),
-                                                child: Text(
-                                                  "${cartItem.quantity}",
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: uberBlack,
-                                                  ),
-                                                ),
-                                              ),
-                                              Material(
-                                                color: Colors.transparent,
-                                                child: InkWell(
-                                                  onTap: () async {
-                                                    try {
-                                                      await cartService.updateQuantity(
-                                                        cartItem,
-                                                        cartItem.quantity + 1,
-                                                      );
-                                                      // Reload cart after update
-                                                      await cartService.fetchCart();
-                                                    } catch (e) {
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(
-                                                            content: Text('Failed to update: ${e.toString()}'),
-                                                            backgroundColor: Colors.red,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  },
-                                                  borderRadius: const BorderRadius.only(
-                                                    topRight: Radius.circular(8),
-                                                    bottomRight: Radius.circular(8),
-                                                  ),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.add,
-                                                      size: 16,
-                                                      color: uberBlack,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                    if (cartItem.quantity > 1) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        "₺${itemTotal.toStringAsFixed(2)} total",
+                                        style: const TextStyle(
+                                          color: priceRed,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
                                         ),
-                                        const Spacer(),
-                                        Text(
-                                          "₺${itemTotal.toStringAsFixed(2)}",
-                                          style: const TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.bold,
-                                            color: uberBlack,
-                                            letterSpacing: -0.3,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ],
                                 ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Builder(
+                                    builder: (context) {
+                                      final isUpdating = cartItem.cartItemId != null &&
+                                          _updatingCartItemId == cartItem.cartItemId;
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () async {
+                                                if (cartItem.cartItemId != null) {
+                                                  setState(() => _updatingCartItemId = cartItem.cartItemId);
+                                                }
+                                                try {
+                                                  if (cartItem.quantity > 1) {
+                                                    await cartService.updateQuantity(
+                                                      cartItem,
+                                                      cartItem.quantity - 1,
+                                                    );
+                                                    await cartService.fetchCart();
+                                                  } else {
+                                                    if (context.mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text('You cannot decrease, you have just one'),
+                                                          backgroundColor: Colors.orange,
+                                                          duration: Duration(seconds: 2),
+                                                        ),
+                                                      );
+                                                    }
+                                                    await cartService.removeFromCart(cartItem);
+                                                    await cartService.fetchCart();
+                                                  }
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text('Failed to update: ${e.toString()}'),
+                                                        backgroundColor: Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                } finally {
+                                                  if (mounted) setState(() => _updatingCartItemId = null);
+                                                }
+                                              },
+                                              customBorder: const CircleBorder(),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(color: Colors.grey[300]!),
+                                                ),
+                                                child: Icon(
+                                                  Icons.remove,
+                                                  size: 16,
+                                                  color: cartItem.quantity > 1
+                                                      ? uberBlack
+                                                      : Colors.grey[400],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                                            child: isUpdating
+                                                ? const SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: uberBlack,
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    formatQtyWithUnit(cartItem.quantity, cartItem.unitType),
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: uberBlack,
+                                                    ),
+                                                    softWrap: false,
+                                                  ),
+                                          ),
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () async {
+                                                if (cartItem.cartItemId != null) {
+                                                  setState(() => _updatingCartItemId = cartItem.cartItemId);
+                                                }
+                                                try {
+                                                  await cartService.updateQuantity(
+                                                    cartItem,
+                                                    cartItem.quantity + 1,
+                                                  );
+                                                  await cartService.fetchCart();
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text('Failed to update: ${e.toString()}'),
+                                                        backgroundColor: Colors.red,
+                                                      ),
+                                                    );
+                                                  }
+                                                } finally {
+                                                  if (mounted) setState(() => _updatingCartItemId = null);
+                                                }
+                                              },
+                                              customBorder: const CircleBorder(),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(color: Colors.grey[300]!),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.add,
+                                                  size: 16,
+                                                  color: uberBlack,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        if (index < currentCartItems.length - 1)
-                          Divider(
-                            height: 1,
-                            thickness: 1,
-                            color: Colors.grey[200],
-                            indent: 20,
-                            endIndent: 20,
-                          ),
-                      ],
+                      ),
                     );
                   },
                 ),
@@ -1209,9 +1275,9 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                             ),
                             Text(
                               "₺${currentTotal.toStringAsFixed(2)}",
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 15,
-                                color: Colors.grey[800],
+                                color: priceRed,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1228,13 +1294,21 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                                 color: Colors.grey[600],
                               ),
                             ),
-                            Text(
-                              "₺250",
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
+                            Builder(
+                              builder: (_) {
+                                final fee = calculateDeliveryFee(currentTotal);
+                                final pct = getDeliveryFeePercent(currentTotal);
+                                return Text(
+                                  pct != null
+                                      ? "₺${fee.toStringAsFixed(2)} (${pct.toStringAsFixed(0)}%)"
+                                      : "₺${fee.toStringAsFixed(2)}",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: priceRed,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -1254,16 +1328,18 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                               ),
                             ),
                             Text(
-                              "₺${(currentTotal + 250).toStringAsFixed(2)}",
-                              style: TextStyle(
+                              "₺${(currentTotal + calculateDeliveryFee(currentTotal)).toStringAsFixed(2)}",
+                              style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: primaryColor,
+                                color: priceRed,
                                 letterSpacing: -0.5,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        const _DeliveryFeeInfoBox(),
                         const SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
@@ -1318,6 +1394,109 @@ class _CartDetailPageState extends State<_CartDetailPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _DeliveryFeeInfoBox extends StatelessWidget {
+  const _DeliveryFeeInfoBox();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primaryColor.withOpacity(0.06),
+            primaryColor.withOpacity(0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.local_shipping_outlined, size: 18, color: primaryColor),
+              const SizedBox(width: 8),
+              Text(
+                'Delivery fees',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: primaryColor,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _FeeChip(label: '1–750 ₺', value: '₺355'),
+              _FeeChip(label: '751–1500 ₺', value: '₺500'),
+              _FeeChip(label: '1501–2500 ₺', value: '₺750'),
+              _FeeChip(label: 'From ₺2501 and above', value: '25% ★★★', isBest: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeeChip extends StatelessWidget {
+  const _FeeChip({required this.label, required this.value, this.isBest = false});
+
+  final String label;
+  final String value;
+  final bool isBest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isBest ? primaryColor.withOpacity(0.08) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isBest ? primaryColor.withOpacity(0.4) : primaryColor.withOpacity(0.15),
+          width: isBest ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isBest ? 0.05 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 11, color: isBest ? primaryColor : Colors.grey.shade700, fontWeight: FontWeight.w500),
+          children: [
+            TextSpan(text: '$label '),
+            TextSpan(
+              text: '→ $value',
+              style: TextStyle(color: primaryColor, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
     );
   }

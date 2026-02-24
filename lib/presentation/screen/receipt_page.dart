@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/delivery_fee_utils.dart';
 
 // Color scheme
 const Color primaryColor = Color(0xFFE53E3E);
@@ -56,7 +57,8 @@ class ReceiptPage extends StatelessWidget {
     // Use provided items or get from cart
     final items = orderItems ?? cart.cartItems;
     final subtotal = orderSubtotal ?? cart.totalPrice;
-    final totalPrice = subtotal + 250;
+    final double deliveryFee = calculateDeliveryFee(subtotal);
+    final totalPrice = subtotal + deliveryFee;
     final calculatedSavings = savings ?? 0.0;
 
     return Scaffold(
@@ -373,7 +375,7 @@ class ReceiptPage extends StatelessWidget {
                   children: [
                     _buildPriceRow("Subtotal", subtotal),
                     const SizedBox(height: 12),
-                    _buildPriceRow("Delivery Fee", 250),
+                    _buildPriceRow("Delivery Fee", deliveryFee),
                     const SizedBox(height: 12),
                     const Divider(height: 1),
                     const SizedBox(height: 12),

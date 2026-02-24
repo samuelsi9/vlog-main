@@ -1,3 +1,5 @@
+import 'package:vlog/Utils/parse_utils.dart';
+
 // Category Model for API response
 class CategoryModel {
   final int id;
@@ -14,10 +16,10 @@ class CategoryModel {
 
   factory CategoryModel.fromMap(Map<String, dynamic> map) {
     return CategoryModel(
-      id: map['id'] as int? ?? 0,
-      name: map['name'] as String? ?? '',
-      image: map['image'] as String? ?? '',
-      createdAt: map['created_at'] as String? ?? '',
+      id: parseInt(map['id']),
+      name: map['name']?.toString() ?? '',
+      image: map['image']?.toString() ?? '',
+      createdAt: map['created_at']?.toString() ?? '',
     );
   }
 
@@ -103,13 +105,13 @@ class PaginationMeta {
 
   factory PaginationMeta.fromMap(Map<String, dynamic> map) {
     return PaginationMeta(
-      currentPage: map['current_page'] as int? ?? 1,
-      from: map['from'] as int? ?? 1,
-      lastPage: map['last_page'] as int? ?? 1,
-      path: map['path'] as String? ?? '',
-      perPage: map['per_page'] as int? ?? 10,
-      to: map['to'] as int? ?? 10,
-      total: map['total'] as int? ?? 0,
+      currentPage: parseInt(map['current_page'], 1),
+      from: parseInt(map['from'], 1),
+      lastPage: parseInt(map['last_page'], 1),
+      path: map['path']?.toString() ?? '',
+      perPage: parseInt(map['per_page'], 10),
+      to: parseInt(map['to'], 10),
+      total: parseInt(map['total']),
     );
   }
 }

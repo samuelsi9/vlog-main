@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Models/category_model.dart';
@@ -11,6 +12,13 @@ import 'package:vlog/presentation/category_items.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/search_page.dart';
+class _BannerSlide {
+  final String image;
+  final String label;
+  final String title;
+  const _BannerSlide({required this.image, required this.label, required this.title});
+}
+
 // Smooth page transition utility
 class SmoothPageRoute<T> extends PageRouteBuilder<T> {
   final Widget child;
@@ -65,9 +73,35 @@ class _RealhomeState extends State<Realhome> {
   static const Color primaryColor = Color(0xFFE53E3E);
   static const Color primaryColorLight = Color(0xFFFC8181);
   static const Color uberBlack = Color(0xFF000000);
+  static const Color _appBarColor = Color(0xFF1E3A5F); // dark blue
+  static const List<Color> _categoryColors = [
+    Color(0xFFFFCDD2), // soft red
+    Color(0xFFBBDEFB), // soft blue
+    Color(0xFFC8E6C9), // soft green
+    Color(0xFFFFE0B2), // soft amber
+    Color(0xFFE1BEE7), // soft purple
+    Color(0xFFB2EBF2), // soft cyan
+    Color(0xFFFFCC80), // soft orange
+    Color(0xFFF8BBD9), // soft pink
+  ];
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final PageController _bannerPageController = PageController();
+  Timer? _bannerTimer;
+  int _currentBannerIndex = 0;
+
+  static const List<_BannerSlide> _bannerSlides = [
+    _BannerSlide(image: 'assets/home0.jpg', label: 'Special Offer', title: 'Up to 40% Off\nFresh Groceries'),
+    _BannerSlide(image: 'assets/home1.jpg', label: 'Fresh Deals', title: 'Up to 30% Off\nDaily Essentials'),
+    _BannerSlide(image: 'assets/home2.jpg', label: 'Autumn Fresh', title: 'Up to 35% Off\nOrganic Produce'),
+    _BannerSlide(image: 'assets/home3.jpg', label: 'Best Sellers', title: 'Up to 25% Off\nPopular Items'),
+    _BannerSlide(image: 'assets/home4.jpg', label: 'Weekend Sale', title: 'Up to 50% Off\nSelect Products'),
+    _BannerSlide(image: 'assets/home5.jpg', label: 'New Arrivals', title: 'Up to 20% Off\nLatest Products'),
+    _BannerSlide(image: 'assets/home6.jpg', label: 'Hot Deals', title: 'Up to 45% Off\nFresh Groceries'),
+    _BannerSlide(image: 'assets/home7.jpg', label: 'Autumn Fresh Deals', title: 'Up to 40% Off\nFresh Groceries'),
+    _BannerSlide(image: 'assets/home8.jpg', label: 'Limited Time', title: 'Up to 40% Off\nFresh Groceries'),
+  ];
 
   List<ProductModel> _products = [];
   List<ProductModel> _filteredProducts = [];
@@ -82,6 +116,9 @@ class _RealhomeState extends State<Realhome> {
   int _lastPage = 1;
   bool _isLoadingMore = false;
 
+  // Loading indicator when adding product to cart
+  int? _addingProductId;
+
   String _userDisplayName = 'Guest';
 
   @override
@@ -92,6 +129,26 @@ class _RealhomeState extends State<Realhome> {
     _loadUserName();
     _fetchProducts();
     _fetchCategories();
+    _startBannerTimer();
+  }
+
+  void _startBannerTimer() {
+    _bannerPageController.addListener(() {
+      final page = _bannerPageController.page;
+      if (page != null && mounted) {
+        final idx = page.round().clamp(0, _bannerSlides.length - 1);
+        if (_currentBannerIndex != idx) setState(() => _currentBannerIndex = idx);
+      }
+    });
+    _bannerTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!_bannerPageController.hasClients) return;
+      final next = (_currentBannerIndex + 1) % _bannerSlides.length;
+      _bannerPageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   /// Load display name from authenticated user (StorageService).
@@ -230,6 +287,8 @@ class _RealhomeState extends State<Realhome> {
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
+    _bannerPageController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -251,6 +310,116 @@ class _RealhomeState extends State<Realhome> {
       review: "Great product",
       fcolor: [Colors.red, Colors.blue, Colors.green],
       size: ["S", "M", "L", "XL"],
+    );
+  }
+
+  static const Color _bannerDarkBlue = Color(0xFF1E3A5F);
+  static const Color _bannerLightGreen = Color(0xFFA8E6CF);
+
+  Widget _buildBannerSlide(_BannerSlide slide) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CartPage()),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bannerDarkBlue,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Left: text content
+              Positioned(
+                left: 20,
+                top: 0,
+                bottom: 0,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _bannerLightGreen,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        slide.label,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A202C),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      slide.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.2,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Text(
+                        "Shop Now",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A202C),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Right: product image
+              Positioned(
+                right: -10,
+                top: 0,
+                bottom: 0,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                  child: Image.asset(
+                    slide.image,
+                    height: 180,
+                    width: 140,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 140,
+                      height: 180,
+                      color: Colors.grey[300],
+                      child: Icon(Icons.image, color: Colors.grey[500], size: 48),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -294,6 +463,7 @@ class _RealhomeState extends State<Realhome> {
                     ? loadingProgress.cumulativeBytesLoaded /
                         loadingProgress.expectedTotalBytes!
                     : null,
+                color: primaryColor,
               ),
             ),
           );
@@ -340,11 +510,27 @@ class _RealhomeState extends State<Realhome> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar with location and cart
+            // App bar – dark blue
             Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+              decoration: BoxDecoration(
+                color: _appBarColor,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _appBarColor.withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
                 children: [
                   // Welcome and user name
                   Expanded(
@@ -352,7 +538,7 @@ class _RealhomeState extends State<Realhome> {
                       children: [
                         Icon(
                           Icons.person_outline,
-                          color: primaryColor,
+                          color: Colors.white,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -364,16 +550,16 @@ class _RealhomeState extends State<Realhome> {
                                 "Welcome",
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey[600],
+                                  color: Colors.white.withOpacity(0.85),
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 _userDisplayName,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: uberBlack,
+                                  color: Colors.white,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -403,13 +589,20 @@ class _RealhomeState extends State<Realhome> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.grey[100],
+                                color: Colors.white,
                                 shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                               child: Icon(
                                 Icons.shopping_cart_outlined,
                                 size: 22,
-                                color: uberBlack,
+                                color: _appBarColor,
                               ),
                             ),
                             if (cartService.itemCount > 0)
@@ -440,13 +633,11 @@ class _RealhomeState extends State<Realhome> {
                     },
                   ),
                 ],
-              ),
-            ),
-
-            // Search bar - Walmart style
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                  ),
+                  // Search bar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -501,6 +692,9 @@ class _RealhomeState extends State<Realhome> {
                 ),
               ),
             ),
+                ],
+              ),
+            ),
 
             // Main content
             Expanded(
@@ -510,13 +704,25 @@ class _RealhomeState extends State<Realhome> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Categories section
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                      child: Text(
+                        "Shop by category",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: uberBlack,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.only(bottom: 16),
                       child: _isLoadingCategories
                           ? const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(16.0),
-                                child: CircularProgressIndicator(),
+                                child: CircularProgressIndicator(color: primaryColor),
                               ),
                             )
                           : _categories.isEmpty && _hasCategoryError
@@ -564,7 +770,7 @@ class _RealhomeState extends State<Realhome> {
                                                     height: 80,
                                                     width: 80,
                                                     decoration: BoxDecoration(
-                                                      color: Colors.white,
+                                                      color: _categoryColors[index % _categoryColors.length],
                                                       borderRadius: BorderRadius.circular(
                                                         12,
                                                       ),
@@ -612,81 +818,36 @@ class _RealhomeState extends State<Realhome> {
                                 ),
                     ),
 
-                    // Promotional banner
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        height: 140,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [primaryColor, primaryColorLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                    // Promotional banner – auto-scrolling carousel
+                    SizedBox(
+                      height: 180,
+                      child: PageView.builder(
+                        controller: _bannerPageController,
+                        itemCount: _bannerSlides.length,
+                        itemBuilder: (context, index) {
+                          final slide = _bannerSlides[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildBannerSlide(slide),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Page indicators
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _bannerSlides.length,
+                        (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _currentBannerIndex == i ? primaryColor : Colors.grey[300],
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: 20,
-                              top: 0,
-                              bottom: 0,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    "Special Offer",
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    "20% OFF",
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Text(
-                                      "Shop Now",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              right: -20,
-                              top: -20,
-                              child: Container(
-                                width: 120,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ),
@@ -718,7 +879,7 @@ class _RealhomeState extends State<Realhome> {
                       const Padding(
                         padding: EdgeInsets.all(40.0),
                         child: Center(
-                          child: CircularProgressIndicator(),
+                          child: CircularProgressIndicator(color: primaryColor),
                         ),
                       )
                     else if (_filteredProducts.isEmpty && _searchController.text.isEmpty)
@@ -756,26 +917,21 @@ class _RealhomeState extends State<Realhome> {
                     else
                       // Items grid - Featured deals style
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
                         child: GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
-                                childAspectRatio: 0.58,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 20,
+                                childAspectRatio: 0.64,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 16,
                               ),
                           itemCount: _filteredProducts.length,
                           itemBuilder: (context, index) {
                             final product = _filteredProducts[index];
                             final eCommerceItems = _productToItemModel(product);
-                          // Calculate discount (simulated - 10-30% off)
-                          final discountPercent = (index % 3 + 1) * 10;
-                          final originalPrice = (eCommerceItems.price * 1.15)
-                              .round();
-                          final hasDiscount = discountPercent > 0;
 
                           return InkWell(
                             onTap: () {
@@ -789,52 +945,40 @@ class _RealhomeState extends State<Realhome> {
                             child: Container(
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: Colors.grey[200]!,
+                                  color: Colors.grey.shade100,
                                   width: 1,
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.02),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Image with discount badge and wishlist
+                                  // Image with wishlist
                                   Stack(
                                     children: [
                                       ClipRRect(
                                         borderRadius:
                                             const BorderRadius.vertical(
-                                              top: Radius.circular(16),
+                                              top: Radius.circular(14),
                                             ),
                                         child: _buildProductImage(
                                           product.image,
-                                          height: 130,
+                                          height: 118,
                                         ),
                                       ),
-                                      if (hasDiscount)
-                                        Positioned(
-                                          top: 8,
-                                          left: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: primaryColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              "$discountPercent% off",
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
                                       // Wishlist button (uses product.id for API add/remove)
                                       Positioned(
                                         top: 8,
@@ -843,6 +987,7 @@ class _RealhomeState extends State<Realhome> {
                                           builder: (context, wishlistService, child) {
                                             final isInWishlist = wishlistService
                                                 .isInWishlist(product);
+                                            final isToggling = wishlistService.isToggling(product.id);
                                             return InkWell(
                                               onTap: () async {
                                                 try {
@@ -889,15 +1034,24 @@ class _RealhomeState extends State<Realhome> {
                                                     ),
                                                   ],
                                                 ),
-                                                child: Icon(
-                                                  isInWishlist
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-                                                  color: isInWishlist
-                                                      ? Colors.red
-                                                      : Colors.grey[700],
-                                                  size: 18,
-                                                ),
+                                                child: isToggling
+                                                    ? SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.grey[700],
+                                                        ),
+                                                      )
+                                                    : Icon(
+                                                        isInWishlist
+                                                            ? Icons.favorite
+                                                            : Icons.favorite_border,
+                                                        color: isInWishlist
+                                                            ? Colors.red
+                                                            : Colors.grey[700],
+                                                        size: 18,
+                                                      ),
                                               ),
                                             );
                                           },
@@ -908,15 +1062,15 @@ class _RealhomeState extends State<Realhome> {
                                   // Content
                                   Expanded(
                                     child: Padding(
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
+                                            MainAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Flexible(
-                                            child: Column(
+                                          Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               mainAxisSize: MainAxisSize.min,
@@ -934,33 +1088,36 @@ class _RealhomeState extends State<Realhome> {
                                                         mainAxisSize:
                                                             MainAxisSize.min,
                                                         children: [
-                                                          if (hasDiscount)
-                                                            Text(
-                                                              "₺$originalPrice",
-                                                              style: TextStyle(
-                                                                fontSize: 11,
-                                                                color: Colors
-                                                                    .grey[500],
-                                                                decoration:
-                                                                    TextDecoration
-                                                                        .lineThrough,
+                                                          Row(
+                                                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                                                            textBaseline: TextBaseline.alphabetic,
+                                                            children: [
+                                                              Text(
+                                                                "₺${eCommerceItems.price}",
+                                                                style: TextStyle(
+                                                                  fontSize: 15,
+                                                                  fontWeight: FontWeight.w700,
+                                                                  color: primaryColor,
+                                                                  letterSpacing: -0.4,
+                                                                ),
                                                               ),
-                                                            ),
-                                                          const SizedBox(
-                                                            height: 2,
-                                                          ),
-                                                          Text(
-                                                            "₺${eCommerceItems.price}",
-                                                            style: TextStyle(
-                                                              fontSize: 16,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color:
-                                                                  primaryColor,
-                                                              letterSpacing:
-                                                                  -0.5,
-                                                            ),
+                                                              const SizedBox(width: 6),
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: Colors.amber.shade100,
+                                                                  borderRadius: BorderRadius.circular(6),
+                                                                ),
+                                                                child: Text(
+                                                                  "1${product.unitType}",
+                                                                  style: TextStyle(
+                                                                    fontSize: 11,
+                                                                    color: Colors.amber.shade900,
+                                                                    fontWeight: FontWeight.w500,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
                                                       ),
@@ -986,6 +1143,8 @@ class _RealhomeState extends State<Realhome> {
                                                             : null;
                                                         return GestureDetector(
                                                           onTap: () async {
+                                                            if (_addingProductId == product.id) return;
+                                                            setState(() => _addingProductId = product.id);
                                                             try {
                                                               // Use product ID from ProductModel
                                                               await cartService.addToCartByProductId(product.id);
@@ -1050,22 +1209,32 @@ class _RealhomeState extends State<Realhome> {
                                                                   ),
                                                                 );
                                                               }
+                                                            } finally {
+                                                              if (mounted) setState(() => _addingProductId = null);
                                                             }
                                                           },
                                                           child: Container(
-                                                            width: 32,
-                                                            height: 32,
+                                                            width: 34,
+                                                            height: 34,
                                                             decoration: BoxDecoration(
                                                               color:
                                                                   primaryColor,
                                                               borderRadius:
                                                                   BorderRadius.circular(
-                                                                    8,
+                                                                    10,
                                                                   ),
                                                             ),
                                                             child: Center(
-                                                              child:
-                                                                  isInCart &&
+                                                              child: _addingProductId == product.id
+                                                                  ? const SizedBox(
+                                                                      width: 18,
+                                                                      height: 18,
+                                                                      child: CircularProgressIndicator(
+                                                                        strokeWidth: 2,
+                                                                        color: Colors.white,
+                                                                      ),
+                                                                    )
+                                                                  : isInCart &&
                                                                       cartItem !=
                                                                           null
                                                                   ? Text(
@@ -1092,7 +1261,7 @@ class _RealhomeState extends State<Realhome> {
                                                     ),
                                                   ],
                                                 ),
-                                                const SizedBox(height: 6),
+                                                const SizedBox(height: 2),
                                                 // Product name
                                                 Text(
                                                   eCommerceItems.name,
@@ -1100,13 +1269,14 @@ class _RealhomeState extends State<Realhome> {
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w600,
                                                     color: uberBlack,
-                                                    letterSpacing: -0.2,
+                                                    letterSpacing: -0.3,
+                                                    height: 1.25,
                                                   ),
                                                   maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
-                                                const SizedBox(height: 4),
+                                                const SizedBox(height: 2),
                                                 // Rating
                                                 Row(
                                                   children: [
@@ -1127,7 +1297,6 @@ class _RealhomeState extends State<Realhome> {
                                                 ),
                                               ],
                                             ),
-                                          ),
                                         ],
                                       ),
                                     ),
@@ -1144,7 +1313,7 @@ class _RealhomeState extends State<Realhome> {
                     if (_filteredProducts.isNotEmpty && _currentPage < _lastPage && _isLoadingMore)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: CircularProgressIndicator(color: primaryColor)),
                       )
                     else if (_filteredProducts.isNotEmpty && _currentPage >= _lastPage && _lastPage > 1)
                       Padding(

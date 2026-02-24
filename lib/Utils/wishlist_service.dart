@@ -11,9 +11,12 @@ class WishlistService extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   bool _hasMore = true;
+  final Set<int> _togglingProductIds = {};
 
   List<WishlistItemModel> get wishlist => List.unmodifiable(_items);
   bool get loading => _loading;
+  /// True while add/remove for this product is in progress.
+  bool isToggling(int productId) => _togglingProductIds.contains(productId);
   String? get error => _error;
   bool get hasMore => _hasMore;
 
@@ -78,11 +81,19 @@ class WishlistService extends ChangeNotifier {
   Future<void> toggleWishlist(dynamic productOrId) async {
     final id = _productIdFrom(productOrId);
     if (id == null || id <= 0) return;
-    if (isInWishlistByProductId(id)) {
-      final wishlistId = getWishlistIdByProductId(id);
-      if (wishlistId != null) await removeFromWishlist(wishlistId);
-    } else {
-      await addToWishlist(id);
+    if (_togglingProductIds.contains(id)) return; // Already toggling, ignore double-tap
+    _togglingProductIds.add(id);
+    notifyListeners();
+    try {
+      if (isInWishlistByProductId(id)) {
+        final wishlistId = getWishlistIdByProductId(id);
+        if (wishlistId != null) await removeFromWishlist(wishlistId);
+      } else {
+        await addToWishlist(id);
+      }
+    } finally {
+      _togglingProductIds.remove(id);
+      notifyListeners();
     }
   }
 

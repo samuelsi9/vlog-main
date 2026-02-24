@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/parse_utils.dart';
+import 'package:vlog/Utils/delivery_fee_utils.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/delivery_address_model.dart';
 import 'package:vlog/presentation/home.dart';
@@ -75,7 +78,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
     });
   }
 
-  /// Build image widget: handles empty, network URLs, or asset paths.
+  /// Build image widget: handles empty, network URLs, asset paths, and API relative paths.
   Widget _buildImage(String imageUrl, {double? width, double? height}) {
     if (imageUrl.isEmpty) {
       return Container(
@@ -85,7 +88,12 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
         child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 28),
       );
     }
-    final trimmed = imageUrl.trim();
+    String trimmed = imageUrl.trim();
+    // API relative paths (e.g. /storage/products/...) need base URL
+    if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+      final base = AuthService().baseUrl;
+      trimmed = base.endsWith('/') ? '$base${trimmed.substring(1)}' : '$base$trimmed';
+    }
     final isNetwork = trimmed.startsWith('http://') ||
         trimmed.startsWith('https://') ||
         trimmed.startsWith('www.') ||
@@ -102,7 +110,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
             width: width ?? 50,
             height: height ?? 50,
             color: Colors.grey[200],
-            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
           );
         },
         errorBuilder: (context, _, __) => Container(
@@ -135,21 +143,6 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
 
   Future<void> _placeOrder(BuildContext context) async {
     final cart = Provider.of<CartService>(context, listen: false);
-    const double minimumOrderAmount = 2000.0;
-    final double totalWithDelivery = cart.totalPrice + 250;
-
-    if (totalWithDelivery < minimumOrderAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Minimum order amount is ₺${minimumOrderAmount.toStringAsFixed(2)}. Please add more items.',
-          ),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
 
     if (_selectedDeliveryDate == null || _selectedDeliveryTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -188,10 +181,13 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
     try {
       final auth = AuthService();
       final paymentMethod = _selectedPaymentMethod == 'cod' ? 'cash_on_delivery' : _selectedPaymentMethod;
+      final d = _selectedDeliveryDate!;
+      final dateStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final deliveryTime = '$dateStr $_selectedDeliveryTime';
       final response = await auth.placeOrder(
         addressId: addressId,
         paymentMethod: paymentMethod,
-        deliveryTime: _selectedDeliveryTime!,
+        deliveryTime: deliveryTime,
       );
 
       if (!mounted) return;
@@ -238,17 +234,13 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check_circle,
-                  color: primaryColor,
-                  size: 56,
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: Lottie.asset(
+                  'assets/lottie/OrderPlace.json',
+                  fit: BoxFit.contain,
+                  repeat: true,
                 ),
               ),
               const SizedBox(height: 24),
@@ -402,7 +394,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                               ),
                             ),
                             Text(
-                              '₺${(cart.totalPrice + 250).toStringAsFixed(2)}',
+                              '₺${(cart.totalPrice + calculateDeliveryFee(cart.totalPrice)).toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
@@ -486,7 +478,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Qty: ${ci.quantity} × ₺${ci.item.price}',
+                                              'Qty: ${formatQtyWithUnit(ci.quantity, ci.unitType)} × ₺${ci.item.price}',
                                               style: TextStyle(
                                                 color: Colors.grey[600],
                                                 fontSize: 12,
@@ -538,13 +530,21 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                     color: Colors.grey[600],
                                   ),
                                 ),
-                                Text(
-                                  '₺250',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[800],
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                Builder(
+                                  builder: (_) {
+                                    final fee = calculateDeliveryFee(cart.totalPrice);
+                                    final pct = getDeliveryFeePercent(cart.totalPrice);
+                                    return Text(
+                                      pct != null
+                                          ? '₺${fee.toStringAsFixed(2)} (${pct.toStringAsFixed(0)}%)'
+                                          : '₺${fee.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey[800],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -563,7 +563,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                   ),
                                 ),
                                 Text(
-                                  '₺${(cart.totalPrice + 250).toStringAsFixed(2)}',
+                                  '₺${(cart.totalPrice + calculateDeliveryFee(cart.totalPrice)).toStringAsFixed(2)}',
                                   style: TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -571,6 +571,60 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    primaryColor.withOpacity(0.06),
+                                    primaryColor.withOpacity(0.02),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryColor.withOpacity(0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.local_shipping_outlined, size: 18, color: primaryColor),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Delivery fees',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: primaryColor,
+                                          letterSpacing: -0.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      _buildFeeChip(context, '1–750 ₺', '₺355'),
+                                      _buildFeeChip(context, '751–1500 ₺', '₺500'),
+                                      _buildFeeChip(context, '1501–2500 ₺', '₺750'),
+                                      _buildFeeChip(context, 'From ₺2501 and above', '25% ★★★', isBest: true),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -625,7 +679,9 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                             _buildDetailRow(
                               icon: Icons.home_outlined,
                               label: 'Address',
-                              value: _address,
+                              value: widget.selectedAddress?.buildingNumber.isNotEmpty == true
+                                  ? widget.selectedAddress!.buildingNumber
+                                  : _address,
                             ),
                             const SizedBox(height: 16),
                             _buildDetailRow(
@@ -794,35 +850,42 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: _selectedPaymentMethod == 'cod'
-                                      ? primaryColor
-                                      : Colors.grey[300]!,
-                                  width: _selectedPaymentMethod == 'cod' ? 2 : 1,
+                            InkWell(
+                              onTap: () => setState(() => _selectedPaymentMethod = 'cod'),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: _selectedPaymentMethod == 'cod'
+                                        ? primaryColor
+                                        : Colors.grey[300]!,
+                                    width: _selectedPaymentMethod == 'cod' ? 2 : 1,
+                                  ),
                                 ),
-                              ),
-                              child: RadioListTile<String>(
-                                value: 'cod',
-                                groupValue: _selectedPaymentMethod,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedPaymentMethod = value!;
-                                  });
-                                },
-                                activeColor: primaryColor,
-                                title: const Text(
-                                  'Cash on Delivery',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                child: RadioListTile<String>(
+                                  value: 'cod',
+                                  groupValue: _selectedPaymentMethod,
+                                  onChanged: (value) {
+                                    setState(() => _selectedPaymentMethod = value!);
+                                  },
+                                  activeColor: primaryColor,
+                                  secondary: Icon(
+                                    Icons.money,
+                                    color: _selectedPaymentMethod == 'cod' ? primaryColor : Colors.grey[600],
+                                    size: 28,
+                                  ),
+                                  title: const Text(
+                                    'Cash on Delivery',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: const Text(
+                                    'Pay in cash when your order is delivered',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                                 ),
-                                subtitle: const Text(
-                                  'Pay in cash when your order is delivered',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                               ),
                             ),
                           ],
@@ -892,53 +955,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                       // Validation warnings
                       Builder(
                         builder: (context) {
-                          const double minimumOrderAmount = 2000.0;
-                          final double totalWithDelivery = cart.totalPrice + 250;
-                          final bool meetsMinimumAmount = totalWithDelivery >= minimumOrderAmount;
                           final bool hasDeliverySchedule = _selectedDeliveryDate != null && _selectedDeliveryTime != null;
-
-                          // Show minimum amount warning
-                          if (!meetsMinimumAmount) {
-                            final double remainingAmount = minimumOrderAmount - totalWithDelivery;
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              margin: const EdgeInsets.only(bottom: 16),
-                              decoration: BoxDecoration(
-                                color: Colors.orange[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.orange[200]!),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 24),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Minimum Order Required',
-                                          style: TextStyle(
-                                            color: Colors.orange[900],
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Add ₺${remainingAmount.toStringAsFixed(2)} more to place your order',
-                                          style: TextStyle(
-                                            color: Colors.orange[800],
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
 
                           // Show delivery schedule warning
                           if (!hasDeliverySchedule) {
@@ -1028,20 +1045,10 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                       ),
                       child: Builder(
                         builder: (context) {
-                          const double minimumOrderAmount = 2000.0;
-                          final double totalWithDelivery = cart.totalPrice + 250;
-                          final bool meetsMinimumAmount = totalWithDelivery >= minimumOrderAmount;
                           final bool hasDeliverySchedule = _selectedDeliveryDate != null && _selectedDeliveryTime != null;
-                          final bool canPlaceOrder = meetsMinimumAmount && 
-                                                     hasDeliverySchedule && 
-                                                     cart.cartItems.isNotEmpty;
+                          final bool canPlaceOrder = hasDeliverySchedule && cart.cartItems.isNotEmpty;
 
-                          String buttonText = 'Place Order';
-                          if (!meetsMinimumAmount) {
-                            buttonText = 'Minimum: ₺${minimumOrderAmount.toStringAsFixed(2)}';
-                          } else if (!hasDeliverySchedule) {
-                            buttonText = 'Select Delivery Time';
-                          }
+                          final String buttonText = !hasDeliverySchedule ? 'Select Delivery Time' : 'Place Order';
 
                           return Material(
                             color: Colors.transparent,
@@ -1094,6 +1101,39 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
     final month = months[date.month - 1];
     final day = date.day;
     return '$weekday, $month $day';
+  }
+
+  Widget _buildFeeChip(BuildContext context, String label, String value, {bool isBest = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isBest ? primaryColor.withOpacity(0.08) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isBest ? primaryColor.withOpacity(0.4) : primaryColor.withOpacity(0.15),
+          width: isBest ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isBest ? 0.05 : 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 11, color: isBest ? primaryColor : Colors.grey.shade700, fontWeight: FontWeight.w500),
+          children: [
+            TextSpan(text: '$label '),
+            TextSpan(
+              text: '→ $value',
+              style: TextStyle(color: primaryColor, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDetailRow({

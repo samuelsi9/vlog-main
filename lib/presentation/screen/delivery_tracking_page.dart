@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../Data/apiservices.dart';
 import '../../Models/order_history_model.dart';
+import '../../Utils/parse_utils.dart';
 
 /// Polling interval for real-time order status updates.
 const Duration _pollInterval = Duration(seconds: 15);
@@ -9,6 +14,8 @@ const Duration _pollInterval = Duration(seconds: 15);
 const Duration _cancelledRemovalDelay = Duration(minutes: 5);
 /// How often to check whether to remove cancelled orders.
 const Duration _cancelledRemovalCheckInterval = Duration(seconds: 30);
+
+const Color _primaryRed = Color(0xFFE53E3E);
 
 class DeliveryTrackingPage extends StatefulWidget {
   final String? orderId;
@@ -270,7 +277,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                 ),
                 IconButton(
                   icon: Icon(Icons.phone, color: Colors.grey[700]),
-                  onPressed: () {},
+                  onPressed: () => _showContactBottomSheet(context),
                 ),
               ]
             : null,
@@ -279,7 +286,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
           ? Stack(
               children: [
                 if (_singleLoading)
-                  const Center(child: CircularProgressIndicator())
+                  Center(child: CircularProgressIndicator(color: _primaryRed))
                 else if (_singleError != null)
                   _buildSingleError()
                 else if (_singleOrder != null)
@@ -308,7 +315,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
               ],
             )
           : (_loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator(color: _primaryRed))
               : _error != null
                   ? _buildListError()
                   : _orders.isEmpty
@@ -416,6 +423,341 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     final idx = _statusToStepIndex(status);
     if (idx < 0) return 0;
     return (idx + 1) / 5;
+  }
+
+  Future<void> _downloadInvoice(AllOrderHistoryModel order) async {
+    final pdf = pw.Document();
+
+    const primaryColor = PdfColor.fromInt(0xFFE53E3E);
+    const darkColor = PdfColor.fromInt(0xFF1A202C);
+    const greyColor = PdfColor.fromInt(0xFF718096);
+    const lightGrey = PdfColor.fromInt(0xFFF7FAFC);
+    const borderColor = PdfColor.fromInt(0xFFE2E8F0);
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'INVOICE',
+                        style: pw.TextStyle(
+                          fontSize: 28,
+                          fontWeight: pw.FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Koliago',
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          color: darkColor,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      // pw.Text(
+                      //   'Order #${order.id}',
+                      //   style: pw.TextStyle(
+                      //     fontSize: 16,
+                      //     fontWeight: pw.FontWeight.bold,
+                      //     color: darkColor,
+                      //   ),
+                      // ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Date: ${order.createdAt.length >= 10 ? order.createdAt.substring(0, 10) : order.createdAt}',
+                        style: pw.TextStyle(fontSize: 11, color: greyColor),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: pw.BoxDecoration(
+                          color: primaryColor,
+                          borderRadius: pw.BorderRadius.circular(12),
+                        ),
+                        child: pw.Text(
+                          order.status.toUpperCase(),
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.white,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 8),
+              pw.Divider(color: primaryColor, thickness: 2),
+              pw.SizedBox(height: 20),
+
+              // Order info row
+              pw.Row(
+                children: [
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        color: lightGrey,
+                        borderRadius: pw.BorderRadius.circular(8),
+                        border: pw.Border.all(color: borderColor),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Payment Method',
+                              style: pw.TextStyle(fontSize: 10, color: greyColor)),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            order.paymentMethod.replaceAll('_', ' ').toUpperCase(),
+                            style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: darkColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        color: lightGrey,
+                        borderRadius: pw.BorderRadius.circular(8),
+                        border: pw.Border.all(color: borderColor),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Payment Status',
+                              style: pw.TextStyle(fontSize: 10, color: greyColor)),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            order.paymentStatus.replaceAll('_', ' ').toUpperCase(),
+                            style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: darkColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(12),
+                      decoration: pw.BoxDecoration(
+                        color: lightGrey,
+                        borderRadius: pw.BorderRadius.circular(8),
+                        border: pw.Border.all(color: borderColor),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Items',
+                              style: pw.TextStyle(fontSize: 10, color: greyColor)),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            '${order.items.length} item(s)',
+                            style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: darkColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 24),
+
+              // Items table header
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: pw.BoxDecoration(
+                  color: darkColor,
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Text('Product',
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 50,
+                      child: pw.Text('Qty',
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 70,
+                      child: pw.Text('Unit Price',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 70,
+                      child: pw.Text('Total',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Items rows
+              ...order.items.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                final rowBg = i.isEven ? PdfColors.white : const PdfColor.fromInt(0xFFF7FAFC);
+                return pw.Container(
+                  color: rowBg,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Text(item.name,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 50,
+                        child: pw.Text(formatQtyWithUnit(item.quantity, item.unitType),
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 70,
+                        child: pw.Text('tl ${item.price.toStringAsFixed(2)}',
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 70,
+                        child: pw.Text('tl ${item.subtotal.toStringAsFixed(2)}',
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                                color: darkColor)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              pw.Divider(color: borderColor),
+              pw.SizedBox(height: 8),
+
+              // Totals
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.SizedBox(
+                    width: 240,
+                    child: pw.Column(
+                      children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Subtotal',
+                                style: pw.TextStyle(fontSize: 12, color: greyColor)),
+                            pw.Text('tl ${order.totalAmount.toStringAsFixed(2)}',
+                                style: pw.TextStyle(fontSize: 12, color: darkColor)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Delivery fee',
+                                style: pw.TextStyle(fontSize: 12, color: greyColor)),
+                            pw.Text('tl ${order.deliveryFee.toStringAsFixed(2)}',
+                                style: pw.TextStyle(fontSize: 12, color: darkColor)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 8),
+                        pw.Divider(color: borderColor),
+                        pw.SizedBox(height: 6),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('TOTAL',
+                                style: pw.TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: darkColor)),
+                            pw.Text('tl ${order.grandTotal.toStringAsFixed(2)}',
+                                style: pw.TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: primaryColor)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.Spacer(),
+
+              // Footer
+              pw.Divider(color: borderColor),
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.Text(
+                  'Thank you for shopping with Koliago!',
+                  style: pw.TextStyle(
+                      fontSize: 11, color: greyColor, fontStyle: pw.FontStyle.italic),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'Invoice_Order_${order.id}.pdf',
+    );
   }
 
   Widget _buildOrderCard(AllOrderHistoryModel order) {
@@ -530,9 +872,282 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                 valueColor: AlwaysStoppedAnimation<Color>(statusColor),
               ),
             ),
+            if (order.isDelivered) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _DownloadInvoiceButton(onTap: () => _downloadInvoice(order)),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _downloadInvoiceSingle(SingleOrderHistoryModel order) async {
+    final pdf = pw.Document();
+
+    const primaryColor = PdfColor.fromInt(0xFFE53E3E);
+    const darkColor = PdfColor.fromInt(0xFF1A202C);
+    const greyColor = PdfColor.fromInt(0xFF718096);
+    const borderColor = PdfColor.fromInt(0xFFE2E8F0);
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'INVOICE',
+                        style: pw.TextStyle(
+                          fontSize: 28,
+                          fontWeight: pw.FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Koliago',
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: darkColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(
+                        'Order #${order.id}',
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                          color: darkColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Date: ${order.createdAt.length >= 10 ? order.createdAt.substring(0, 10) : order.createdAt}',
+                        style: pw.TextStyle(fontSize: 11, color: greyColor),
+                      ),
+                      if (order.deliveryTime != null && order.deliveryTime!.isNotEmpty) ...[
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'Delivery: ${order.deliveryTime}',
+                          style: pw.TextStyle(fontSize: 11, color: greyColor),
+                        ),
+                      ],
+                      pw.SizedBox(height: 4),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: pw.BoxDecoration(
+                          color: primaryColor,
+                          borderRadius: pw.BorderRadius.circular(12),
+                        ),
+                        child: pw.Text(
+                          order.status.toUpperCase(),
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.white,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 8),
+              pw.Divider(color: primaryColor, thickness: 2),
+              pw.SizedBox(height: 24),
+
+              // Items table header
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: pw.BoxDecoration(
+                  color: darkColor,
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Text('Product',
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 50,
+                      child: pw.Text('Qty',
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 70,
+                      child: pw.Text('Unit Price',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    pw.SizedBox(
+                      width: 70,
+                      child: pw.Text('Total',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              color: PdfColors.white,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Items rows
+              ...order.items.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                final rowBg = i.isEven ? PdfColors.white : const PdfColor.fromInt(0xFFF7FAFC);
+                return pw.Container(
+                  color: rowBg,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 4,
+                        child: pw.Text(item.name,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 50,
+                        child: pw.Text(formatQtyWithUnit(item.quantity, item.unitType),
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 70,
+                        child: pw.Text('tl ${item.price.toStringAsFixed(2)}',
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(fontSize: 11, color: darkColor)),
+                      ),
+                      pw.SizedBox(
+                        width: 70,
+                        child: pw.Text('tl ${item.subtotal.toStringAsFixed(2)}',
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                                color: darkColor)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              pw.Divider(color: borderColor),
+              pw.SizedBox(height: 8),
+
+              // Totals
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.SizedBox(
+                    width: 240,
+                    child: pw.Column(
+                      children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Subtotal',
+                                style: pw.TextStyle(fontSize: 12, color: greyColor)),
+                            pw.Text(
+                              'tl ${order.effectiveSubtotal.toStringAsFixed(2)}',
+                              style: pw.TextStyle(fontSize: 12, color: darkColor),
+                            ),
+                          ],
+                        ),
+                        if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
+                          pw.SizedBox(height: 6),
+                          pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text('Delivery fee',
+                                  style: pw.TextStyle(fontSize: 12, color: greyColor)),
+                              pw.Text(
+                                'tl ${order.deliveryFee!.toStringAsFixed(2)}',
+                                style: pw.TextStyle(fontSize: 12, color: darkColor),
+                              ),
+                            ],
+                          ),
+                        ],
+                        pw.SizedBox(height: 8),
+                        pw.Divider(color: borderColor),
+                        pw.SizedBox(height: 6),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('TOTAL',
+                                style: pw.TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: darkColor)),
+                            pw.Text(
+                              'tl ${order.effectiveTotal.toStringAsFixed(2)}',
+                              style: pw.TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: primaryColor),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.Spacer(),
+
+              // Footer
+              pw.Divider(color: borderColor),
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.Text(
+                  'Thank you for shopping with Koliago!',
+                  style: pw.TextStyle(
+                      fontSize: 11,
+                      color: greyColor,
+                      fontStyle: pw.FontStyle.italic),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'Invoice_Order_${order.id}.pdf',
     );
   }
 
@@ -566,6 +1181,16 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
           ],
           const SizedBox(height: 20),
           _buildCancelOrderSection(order),
+          if (order.status == 'delivered' || order.status == 'completed') ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: _DownloadInvoiceButton(
+                onTap: () => _downloadInvoiceSingle(order),
+                fullWidth: true,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
         ],
       ),
@@ -829,36 +1454,52 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     const green = Color(0xFF4CAF50);
     final grey = Colors.grey;
 
+    // Dot: solid green when done/current, grey when not yet reached
+    final Color dotColor = (isCompleted || isCurrent) ? green : grey[300]!;
+    // Connector line: green when this step is completed (next step also reached)
+    final Color lineColor = isCompleted ? green : grey[300]!;
+    // Icon inside dot
+    final Color iconColor = isCompleted
+        ? Colors.white
+        : (isCurrent ? green : grey[400]!);
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Column(
             children: [
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCompleted
-                      ? green
-                      : (isCurrent ? green.withOpacity(0.3) : grey[300]),
+                  color: dotColor,
+                  boxShadow: (isCompleted || isCurrent)
+                      ? [
+                          BoxShadow(
+                            color: green.withOpacity(0.35),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
                 ),
                 child: Icon(
-                  Icons.check,
+                  isCompleted ? Icons.check : (isCurrent ? Icons.radio_button_checked : Icons.circle_outlined),
                   size: 16,
-                  color: isCompleted
-                      ? Colors.white
-                      : (isPending ? grey[400] : green),
+                  color: iconColor,
                 ),
               ),
               if (showLine)
-                Container(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 400),
                   width: 2,
                   height: 48,
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   decoration: BoxDecoration(
-                    color: isCompleted ? green : grey[300],
+                    color: lineColor,
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
@@ -871,18 +1512,60 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isPending ? grey[500] : Colors.black87,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: isPending ? grey[400] : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      if (isCompleted)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: green.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            'Done',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF4CAF50),
+                            ),
+                          ),
+                        )
+                      else if (isCurrent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: green.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            'Now',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF4CAF50),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 13, color: grey[600], height: 1.3),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isPending ? grey[400] : grey[600],
+                      height: 1.3,
+                    ),
                   ),
                   if (isCurrent && deliveryTime != null && deliveryTime.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -926,7 +1609,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
-                    Text('${item.quantity}x', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                    Text(formatQtyWithUnit(item.quantity, item.unitType), style: TextStyle(fontSize: 14, color: Colors.grey[600])),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(item.name, style: const TextStyle(fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -1004,6 +1687,204 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     if (s == 'confirmed') return 'Confirmed';
     if (s == 'processing' || s == 'preparing') return 'Preparing';
     return 'Pending';
+  }
+
+  static const String _supportPhone = '+905338862316';
+
+  void _showContactBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Contact Support',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _supportPhone,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              _ContactOption(
+                icon: Icons.phone,
+                iconColor: const Color(0xFF4CAF50),
+                label: 'Call',
+                onTap: () {
+                  Navigator.pop(context);
+                  _launchUrl('tel:$_supportPhone');
+                },
+              ),
+              const SizedBox(height: 12),
+              _ContactOption(
+                icon: Icons.chat,
+                iconColor: const Color(0xFF25D366),
+                label: 'WhatsApp',
+                onTap: () {
+                  Navigator.pop(context);
+                  // Remove leading + for the wa.me link
+                  final number = _supportPhone.replaceAll('+', '');
+                  _launchUrl('https://wa.me/$number');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open: $url'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+}
+
+class _DownloadInvoiceButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final bool fullWidth;
+  const _DownloadInvoiceButton({required this.onTap, this.fullWidth = false});
+
+  @override
+  State<_DownloadInvoiceButton> createState() => _DownloadInvoiceButtonState();
+}
+
+class _DownloadInvoiceButtonState extends State<_DownloadInvoiceButton> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isFullWidth = widget.fullWidth;
+    return GestureDetector(
+      onTap: _loading
+          ? null
+          : () async {
+              setState(() => _loading = true);
+              try {
+                await Future.microtask(widget.onTap);
+              } finally {
+                if (mounted) setState(() => _loading = false);
+              }
+            },
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isFullWidth ? 20 : 14,
+          vertical: isFullWidth ? 14 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE53E3E).withOpacity(0.08),
+          borderRadius: BorderRadius.circular(isFullWidth ? 14 : 20),
+          border: Border.all(color: const Color(0xFFE53E3E).withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_loading)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFE53E3E),
+                ),
+              )
+            else
+              Icon(
+                Icons.download_rounded,
+                size: isFullWidth ? 20 : 16,
+                color: const Color(0xFFE53E3E),
+              ),
+            const SizedBox(width: 8),
+            Text(
+              _loading ? 'Generating PDF...' : 'Download Invoice',
+              style: TextStyle(
+                fontSize: isFullWidth ? 15 : 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFE53E3E),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactOption extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ContactOption({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: iconColor.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 class QuestionAnswer {
   final String id;
   final String question;

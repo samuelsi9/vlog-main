@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Models/order_history_model.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 
 /// Poll every 15 seconds so single order updates in real time.
 const Duration _singleOrderPollInterval = Duration(seconds: 15);
@@ -12,6 +13,7 @@ const Color _textLabel = Color(0xFF999999);
 const Color _statusOngoing = Color(0xFFFFA500);
 const Color _statusCompleted = Color(0xFF4CAF50);
 const Color _statusCanceled = Color(0xFFE57373);
+const Color _primaryRed = Color(0xFFE53E3E);
 
 class SingleOrderHistoryPage extends StatefulWidget {
   final String orderId;
@@ -181,7 +183,7 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _statusOngoing))
+          ? const Center(child: CircularProgressIndicator(color: _primaryRed))
           : _error != null
               ? Center(
                   child: Padding(
@@ -399,7 +401,7 @@ class _SingleOrderHistoryPageState extends State<SingleOrderHistoryPage> {
                                   ),
                                   Expanded(
                                     child: Text(
-                                      '${item.quantity}',
+                                      formatQtyWithUnit(item.quantity, item.unitType),
                                       style: const TextStyle(
                                         fontSize: 14,
                                         color: _textPrimary,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 
 class Restaurant {
   final String id;
@@ -49,18 +50,18 @@ class Restaurant {
       name: map['name']?.toString() ?? '',
       description: map['description']?.toString() ?? '',
       image: map['image']?.toString() ?? '',
-      rating: (map['rating'] ?? 0.0).toDouble(),
-      reviewCount: map['reviewCount'] ?? 0,
+      rating: parseDouble(map['rating']),
+      reviewCount: parseInt(map['reviewCount']),
       cuisineType: map['cuisineType']?.toString() ?? '',
-      deliveryTime: (map['deliveryTime'] ?? 30.0).toDouble(),
-      deliveryFee: (map['deliveryFee'] ?? 2.0).toDouble(),
-      minOrder: (map['minOrder'] ?? 10.0).toDouble(),
-      distance: (map['distance'] ?? 0.0).toDouble(),
+      deliveryTime: parseDouble(map['deliveryTime'], 30.0),
+      deliveryFee: parseDouble(map['deliveryFee'], 2.0),
+      minOrder: parseDouble(map['minOrder'], 10.0),
+      distance: parseDouble(map['distance']),
       isOpen: map['isOpen'] ?? true,
       isPromoted: map['isPromoted'] ?? false,
       address: map['address']?.toString() ?? '',
-      latitude: (map['latitude'] ?? 0.0).toDouble(),
-      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      latitude: parseDouble(map['latitude']),
+      longitude: parseDouble(map['longitude']),
       tags: List<String>.from(map['tags'] ?? []),
     );
   }

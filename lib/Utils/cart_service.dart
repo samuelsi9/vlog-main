@@ -8,8 +8,9 @@ class CartItem {
   final itemModel item;
   int quantity;
   int? cartItemId; // ID from API for deletion
+  final String? unitType; // e.g. "kg", "piece" - from product
 
-  CartItem({required this.item, this.quantity = 1, this.cartItemId});
+  CartItem({required this.item, this.quantity = 1, this.cartItemId, this.unitType});
 
   double get totalPrice => (item.price * quantity).toDouble();
 }
@@ -79,6 +80,7 @@ class CartService extends ChangeNotifier {
           item: item,
           quantity: apiItem.quantity,
           cartItemId: apiItem.id,
+          unitType: apiItem.unitType,
         ));
       }
       

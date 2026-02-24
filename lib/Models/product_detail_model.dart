@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:vlog/Models/model.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 
 class ProductDetailModel {
   final int id;
@@ -12,6 +13,7 @@ class ProductDetailModel {
   final String createdAt;
   final String updatedAt;
   final double rating; // Default rating value
+  final String unitType; // e.g. "piece", "kg", "liter"
 
   ProductDetailModel({
     required this.id,
@@ -24,20 +26,23 @@ class ProductDetailModel {
     required this.createdAt,
     required this.updatedAt,
     this.rating = 4.0, // Default rating value
+    this.unitType = 'piece',
   });
 
   factory ProductDetailModel.fromMap(Map<String, dynamic> map) {
+    final r = parseDouble(map['rating']);
     return ProductDetailModel(
-      id: map['id'] as int? ?? 0,
-      name: map['name'] as String? ?? '',
-      description: map['description'] as String? ?? '',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      image: map['image'] as String? ?? '',
-      categoryId: map['category_id'] as int? ?? 0,
-      subcategoryId: map['subcategory_id'] as int? ?? 0,
-      createdAt: map['created_at'] as String? ?? '',
-      updatedAt: map['updated_at'] as String? ?? '',
-      rating: (map['rating'] as num?)?.toDouble() ?? 4.0, // Default to 4.0 if not provided
+      id: parseInt(map['id']),
+      name: map['name']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+      price: parseDouble(map['price']),
+      image: map['image']?.toString() ?? '',
+      categoryId: parseInt(map['category_id']),
+      subcategoryId: parseInt(map['subcategory_id']),
+      createdAt: map['created_at']?.toString() ?? '',
+      updatedAt: map['updated_at']?.toString() ?? '',
+      rating: r > 0 ? r : 4.0,
+      unitType: map['unit_type']?.toString().trim().toLowerCase() ?? 'piece',
     );
   }
 
@@ -53,6 +58,7 @@ class ProductDetailModel {
       'created_at': createdAt,
       'updated_at': updatedAt,
       'rating': rating,
+      'unit_type': unitType,
     };
   }
 

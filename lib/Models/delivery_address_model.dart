@@ -1,8 +1,11 @@
+import 'package:vlog/Utils/parse_utils.dart';
+
 class DeliveryAddressModel {
   final String id;
   final String userId;
   final String label; // "Maison", "Bureau", etc.
   final String street;
+  final String buildingNumber;
   final String city;
   final String postalCode;
   final String country;
@@ -17,6 +20,7 @@ class DeliveryAddressModel {
     required this.userId,
     required this.label,
     required this.street,
+    this.buildingNumber = '',
     required this.city,
     required this.postalCode,
     required this.country,
@@ -32,6 +36,7 @@ class DeliveryAddressModel {
     String? userId,
     String? label,
     String? street,
+    String? buildingNumber,
     String? city,
     String? postalCode,
     String? country,
@@ -46,6 +51,7 @@ class DeliveryAddressModel {
       userId: userId ?? this.userId,
       label: label ?? this.label,
       street: street ?? this.street,
+      buildingNumber: buildingNumber ?? this.buildingNumber,
       city: city ?? this.city,
       postalCode: postalCode ?? this.postalCode,
       country: country ?? this.country,
@@ -65,11 +71,12 @@ class DeliveryAddressModel {
       userId: map['userId']?.toString() ?? '',
       label: map['label']?.toString() ?? '',
       street: map['street']?.toString() ?? '',
+      buildingNumber: map['building_number']?.toString() ?? map['buildingNumber']?.toString() ?? '',
       city: map['city']?.toString() ?? '',
       postalCode: map['postalCode']?.toString() ?? '',
       country: map['country']?.toString() ?? 'France',
-      latitude: (map['latitude'] ?? 0.0).toDouble(),
-      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      latitude: parseDouble(map['latitude']),
+      longitude: parseDouble(map['longitude']),
       instructions: map['instructions']?.toString(),
       phone: map['phone']?.toString(),
       isDefault: map['isDefault'] ?? false,
@@ -95,11 +102,12 @@ class DeliveryAddressModel {
       userId: map['user_id']?.toString() ?? map['userId']?.toString() ?? '',
       label: map['address_type']?.toString() ?? map['label']?.toString() ?? 'Address',
       street: street.isEmpty ? streetPart : street,
+      buildingNumber: building,
       city: map['city']?.toString() ?? '',
       postalCode: map['postal_code']?.toString() ?? map['postalCode']?.toString() ?? '',
       country: map['country']?.toString() ?? '',
-      latitude: (map['latitude'] ?? 0.0).toDouble(),
-      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      latitude: parseDouble(map['latitude']),
+      longitude: parseDouble(map['longitude']),
       instructions: map['instructions']?.toString() ?? map['nearby_landmark']?.toString(),
       phone: map['phone']?.toString(),
       isDefault: _toBool(map['is_default']) || _toBool(map['isDefault']),
@@ -112,6 +120,7 @@ class DeliveryAddressModel {
       'userId': userId,
       'label': label,
       'street': street,
+      'building_number': buildingNumber,
       'city': city,
       'postalCode': postalCode,
       'country': country,

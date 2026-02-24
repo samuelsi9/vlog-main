@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Models/model.dart';
-import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Models/subcategory_models.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart'; // Pour aller aux détails
+
+const Color _primaryRed = Color(0xFFE53E3E);
 
 class CategoryItems extends StatefulWidget {
   final String category;
@@ -137,6 +138,7 @@ class _CategoryItemsState extends State<CategoryItems> {
                     ? loadingProgress.cumulativeBytesLoaded /
                         loadingProgress.expectedTotalBytes!
                     : null,
+                color: _primaryRed,
               ),
             ),
           );
@@ -191,8 +193,8 @@ class _CategoryItemsState extends State<CategoryItems> {
           ),
           title: Text(widget.category),
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
+        body: Center(
+          child: CircularProgressIndicator(color: _primaryRed),
         ),
       );
     }
@@ -267,7 +269,7 @@ class _CategoryItemsState extends State<CategoryItems> {
                       child: TextField(
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.all(5),
-                          hintText: "${widget.category}'s Fashion",
+                          hintText: "${widget.category}",
                           hintStyle: const TextStyle(color: Colors.black38),
                           border: const OutlineInputBorder(
                             borderSide: BorderSide.none,
@@ -277,43 +279,6 @@ class _CategoryItemsState extends State<CategoryItems> {
                     ),
                   ),
                 ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 🔹 FILTER BAR
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(
-                    filterCategory.length,
-                    (index) => Padding(
-                      padding: const EdgeInsets.only(right: 5),
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black12),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(filterCategory[index]),
-                            const SizedBox(width: 5),
-                            index == 0
-                                ? const Icon(Icons.filter_list, size: 15)
-                                : const Icon(
-                                    Icons.keyboard_arrow_down,
-                                    size: 15,
-                                  ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               ),
             ),
 
@@ -435,10 +400,11 @@ class _CategoryItemsState extends State<CategoryItems> {
                         ),
                     itemBuilder: (context, index) {
                       final item = _items[index];
-                      // Get product ID if available from API products
-                      final productId = widget.categoryId != null && index < _products.length
-                          ? _products[index].id
+                      // Get product ID and product if available from API
+                      final product = widget.categoryId != null && index < _products.length
+                          ? _products[index]
                           : null;
+                      final productId = product?.id;
                       
                       return GestureDetector(
                         onTap: () {
@@ -481,46 +447,70 @@ class _CategoryItemsState extends State<CategoryItems> {
                                     Positioned(
                                       top: 8,
                                       right: 8,
-                                      child: Consumer<WishlistService>(
-                                        builder: (context, wishlistService, child) {
-                                          final isInWishlist = wishlistService
-                                              .isInWishlist(item);
-                                          return InkWell(
-                                            onTap: () {
-                                              wishlistService.toggleWishlist(
-                                                item,
-                                              );
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    isInWishlist
-                                                        ? "${item.name} removed from wishlist"
-                                                        : "${item.name} added to wishlist",
+                                      child: productId != null
+                                          ? Consumer<WishlistService>(
+                                              builder: (context, wishlistService, child) {
+                                                final isInWishlist = wishlistService.isInWishlist(productId);
+                                                final isToggling = wishlistService.isToggling(productId);
+                                                return InkWell(
+                                                  onTap: () async {
+                                                    try {
+                                                      await wishlistService.toggleWishlist(productId);
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(
+                                                              isInWishlist
+                                                                  ? "${item.name} removed from wishlist"
+                                                                  : "${item.name} added to wishlist",
+                                                            ),
+                                                            duration: const Duration(seconds: 1),
+                                                          ),
+                                                        );
+                                                      }
+                                                    } catch (e) {
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text('Wishlist: ${e.toString()}'),
+                                                            backgroundColor: Colors.red,
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                  child: Container(
+                                                    padding: const EdgeInsets.all(6),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      shape: BoxShape.circle,
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black.withOpacity(0.1),
+                                                          blurRadius: 4,
+                                                          offset: const Offset(0, 2),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: isToggling
+                                                        ? SizedBox(
+                                                            width: 18,
+                                                            height: 18,
+                                                            child: CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color: Colors.grey[700],
+                                                            ),
+                                                          )
+                                                        : Icon(
+                                                            isInWishlist ? Icons.favorite : Icons.favorite_border,
+                                                            color: isInWishlist ? Colors.red : Colors.grey[700],
+                                                            size: 18,
+                                                          ),
                                                   ),
-                                                  duration: const Duration(
-                                                    seconds: 1,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            child: CircleAvatar(
-                                              radius: 16,
-                                              backgroundColor: Colors.black26,
-                                              child: Icon(
-                                                isInWishlist
-                                                    ? Icons.favorite
-                                                    : Icons.favorite_border,
-                                                color: isInWishlist
-                                                    ? Colors.red
-                                                    : Colors.white,
-                                                size: 18,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                                );
+                                              },
+                                            )
+                                          : const SizedBox.shrink(),
                                     ),
                                   ],
                                 ),
@@ -538,12 +528,32 @@ class _CategoryItemsState extends State<CategoryItems> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                ),
-                                child: Text(
-                                  "₺${item.price}",
-                                  style: const TextStyle(color: Colors.black54),
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    Text(
+                                      "₺${item.price}",
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey.shade800,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "1${product?.unitType ?? 'piece'}",
+                                        style: TextStyle(fontSize: 10, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 5),

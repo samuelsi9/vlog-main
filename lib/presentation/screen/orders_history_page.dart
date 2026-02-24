@@ -8,6 +8,7 @@ import 'single_order_history_page.dart';
 const Duration _orderHistoryPollInterval = Duration(seconds: 15);
 
 const Color _tabSelected = Color(0xFF4CAF50); // green when selected
+const Color _primaryRed = Color(0xFFE53E3E);
 // Distinct colors per status (text and background)
 const Color _statusPendingBg = Color(0xFFFFF3E0);      // orange tint
 const Color _statusPendingText = Color(0xFFE65100);
@@ -162,6 +163,17 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
     }
   }
 
+  String _formatCreatedAtTime(String createdAt) {
+    if (createdAt.isEmpty) return '—';
+    try {
+      final dt = DateTime.tryParse(createdAt);
+      if (dt == null) return createdAt;
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return createdAt;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,7 +197,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: _tabSelected),
+              child: CircularProgressIndicator(color: _primaryRed),
             )
           : _error != null
               ? Center(
@@ -343,14 +355,24 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Delivery date (created_at)
-                Text(
-                  'Delivery date: ${_formatCreatedAt(order.createdAt)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                // Delivery date & Create order (created_at) – only if API returned it
+                if (order.createdAt.isNotEmpty) ...[
+                  Text(
+                    'Delivery date: ${_formatCreatedAt(order.createdAt)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Create order: ${_formatCreatedAtTime(order.createdAt)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

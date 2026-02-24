@@ -1,4 +1,5 @@
 import 'package:vlog/Models/product_model.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 
 /// Single wishlist entry from GET /api/wishlist (data array item).
 class WishlistItemModel {
@@ -28,7 +29,7 @@ class WishlistItemModel {
           );
 
     return WishlistItemModel(
-      id: (map['id'] ?? 0) as int,
+      id: parseInt(map['id']),
       createdAt: map['created_at']?.toString(),
       product: product,
     );
@@ -107,13 +108,13 @@ class WishlistMeta {
 
   factory WishlistMeta.fromMap(Map<String, dynamic> map) {
     return WishlistMeta(
-      currentPage: (map['current_page'] ?? 1) as int,
-      from: (map['from'] ?? 1) as int,
-      lastPage: (map['last_page'] ?? 1) as int,
+      currentPage: parseInt(map['current_page'], 1),
+      from: parseInt(map['from'], 1),
+      lastPage: parseInt(map['last_page'], 1),
       path: map['path']?.toString() ?? '',
-      perPage: (map['per_page'] ?? 10) as int,
-      to: (map['to'] ?? 0) as int,
-      total: (map['total'] ?? 0) as int,
+      perPage: parseInt(map['per_page'], 10),
+      to: parseInt(map['to']),
+      total: parseInt(map['total']),
     );
   }
 }

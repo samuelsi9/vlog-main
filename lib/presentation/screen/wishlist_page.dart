@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 
+const Color _primaryRed = Color(0xFFE53E3E);
+
 class WishlistPage extends StatefulWidget {
   const WishlistPage({super.key});
 
@@ -91,7 +93,7 @@ class _WishlistPageState extends State<WishlistPage> {
       body: Consumer<WishlistService>(
         builder: (context, wishlistService, child) {
           if (wishlistService.loading && wishlistService.wishlist.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator(color: _primaryRed));
           }
           if (wishlistService.error != null && wishlistService.wishlist.isEmpty) {
             return Center(
@@ -206,13 +208,31 @@ class _WishlistPageState extends State<WishlistPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  "₺${p.price.toStringAsFixed(2)}",
-                                  style: const TextStyle(
-                                    color: Colors.pink,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 18,
-                                  ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    Text(
+                                      "₺${p.price.toStringAsFixed(2)}",
+                                      style: const TextStyle(
+                                        color: Colors.pink,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        "1${p.unitType}",
+                                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),

@@ -177,46 +177,27 @@ class _RegisterPageState extends State<RegisterPage>
 
   Future<void> _signUpWithApple() async {
     try {
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
+      await AuthService.signInWithApple();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registration with Apple successful!'), backgroundColor: Colors.green),
       );
-
-      final oauthCredential = OAuthProvider("apple.com").credential(
-        idToken: appleCredential.identityToken,
-        accessToken: appleCredential.authorizationCode,
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const Addresses(),
+        ),
       );
-
-      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
-
-      if (userCredential.user != null) {
-        // Save user data
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', userCredential.user!.uid);
-        await prefs.setString('auth_user', jsonEncode({
-          'id': userCredential.user!.uid,
-          'email': userCredential.user!.email ?? appleCredential.email,
-          'name': userCredential.user!.displayName ?? 
-                  '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim(),
-        }));
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration with Apple successful!')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const Addresses(),
-          ),
-        );
-      }
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Apple registration failed: ${e.message}'), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Apple registration failed: ${e.toString()}')),
+        SnackBar(content: Text('Apple registration failed: ${e.toString()}'), backgroundColor: Colors.red),
       );
     }
   }
@@ -498,18 +479,18 @@ class _RegisterPageState extends State<RegisterPage>
                 ),
               ),
 
-              FadeTransition(
-                opacity: _slideOr,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Text(
-                    'or',
-                    style: TextStyle(color: _lightGrey, fontSize: 15),
-                  ),
-                ),
-              ),
+              // FadeTransition(
+              //   opacity: _slideOr,
+              //   child: Padding(
+              //     padding: const EdgeInsets.symmetric(vertical: 20),
+              //     child: Text(
+              //       'or',
+              //       style: TextStyle(color: _lightGrey, fontSize: 15),
+              //     ),
+              //   ),
+              // ),
 
-              // Social icons
+              // Social icons (Google, Apple)
               SlideTransition(
                 position: Tween<Offset>(
                   begin: const Offset(0, 0.3),

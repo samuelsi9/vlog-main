@@ -1,3 +1,5 @@
+import 'package:vlog/Utils/parse_utils.dart';
+
 /// Single line item within an order (from GET /api/orders response).
 class OrderHistoryItemModel {
   final int id;
@@ -6,6 +8,7 @@ class OrderHistoryItemModel {
   final double price;
   final int quantity;
   final double subtotal;
+  final String? unitType; // e.g. "kg", "piece", "liter"
 
   OrderHistoryItemModel({
     required this.id,
@@ -14,16 +17,20 @@ class OrderHistoryItemModel {
     required this.price,
     required this.quantity,
     required this.subtotal,
+    this.unitType,
   });
 
   factory OrderHistoryItemModel.fromMap(Map<String, dynamic> map) {
+    final ut = map['unit_type']?.toString().trim().toLowerCase() ??
+        map['unitType']?.toString().trim().toLowerCase();
     return OrderHistoryItemModel(
-      id: (map['id'] ?? 0) as int,
-      productId: (map['product_id'] ?? map['productId'] ?? 0) as int,
+      id: parseInt(map['id']),
+      productId: parseInt(map['product_id'] ?? map['productId']),
       name: map['name']?.toString() ?? '',
-      price: (map['price'] ?? 0.0).toDouble(),
-      quantity: (map['quantity'] ?? 0) as int,
-      subtotal: (map['subtotal'] ?? 0.0).toDouble(),
+      price: parseDouble(map['price']),
+      quantity: parseInt(map['quantity'], 1),
+      subtotal: parseDouble(map['subtotal']),
+      unitType: ut?.isNotEmpty == true ? ut : null,
     );
   }
 }
@@ -64,14 +71,14 @@ class AllOrderHistoryModel {
         : <OrderHistoryItemModel>[];
 
     return AllOrderHistoryModel(
-      id: (map['id'] ?? 0) as int,
-      totalAmount: (map['total_amount'] ?? map['totalAmount'] ?? 0.0).toDouble(),
+      id: parseInt(map['id']),
+      totalAmount: parseDouble(map['total_amount'] ?? map['totalAmount']),
       status: map['status']?.toString().toLowerCase() ?? 'pending',
       paymentMethod: map['payment_method']?.toString() ?? map['paymentMethod'] ?? '',
       paymentStatus: map['payment_status']?.toString() ?? map['paymentStatus'] ?? '',
       notes: map['notes']?.toString(),
-      deliveryFee: (map['delivery_fee'] ?? map['deliveryFee'] ?? 0.0).toDouble(),
-      grandTotal: (map['grand_total'] ?? map['grandTotal'] ?? 0.0).toDouble(),
+      deliveryFee: parseDouble(map['delivery_fee'] ?? map['deliveryFee']),
+      grandTotal: parseDouble(map['grand_total'] ?? map['grandTotal']),
       createdAt: map['created_at']?.toString() ?? map['createdAt'] ?? '',
       items: items,
     );
@@ -95,6 +102,7 @@ class SingleOrderItemModel {
   final double price;
   final int quantity;
   final double subtotal;
+  final String? unitType; // e.g. "kg", "piece", "liter"
 
   SingleOrderItemModel({
     required this.productId,
@@ -103,16 +111,20 @@ class SingleOrderItemModel {
     required this.price,
     required this.quantity,
     required this.subtotal,
+    this.unitType,
   });
 
   factory SingleOrderItemModel.fromMap(Map<String, dynamic> map) {
+    final ut = map['unit_type']?.toString().trim().toLowerCase() ??
+        map['unitType']?.toString().trim().toLowerCase();
     return SingleOrderItemModel(
-      productId: (map['product_id'] ?? map['productId'] ?? 0) as int,
+      productId: parseInt(map['product_id'] ?? map['productId']),
       name: map['name']?.toString() ?? '',
       image: map['image']?.toString(),
-      price: (map['price'] ?? 0.0).toDouble(),
-      quantity: (map['quantity'] ?? 0) as int,
-      subtotal: (map['subtotal'] ?? 0.0).toDouble(),
+      price: parseDouble(map['price']),
+      quantity: parseInt(map['quantity'], 1),
+      subtotal: parseDouble(map['subtotal']),
+      unitType: ut?.isNotEmpty == true ? ut : null,
     );
   }
 }
@@ -151,11 +163,11 @@ class SingleOrderHistoryModel {
         : <SingleOrderItemModel>[];
 
     return SingleOrderHistoryModel(
-      id: (map['id'] ?? 0) as int,
+      id: parseInt(map['id']),
       status: map['status']?.toString().toLowerCase() ?? 'pending',
-      subtotal: map['subtotal'] != null ? (map['subtotal'] as num).toDouble() : null,
-      deliveryFee: map['delivery_fee'] != null ? (map['delivery_fee'] as num).toDouble() : null,
-      total: map['total'] != null ? (map['total'] as num).toDouble() : null,
+      subtotal: map['subtotal'] != null ? parseDouble(map['subtotal']) : null,
+      deliveryFee: map['delivery_fee'] != null ? parseDouble(map['delivery_fee']) : null,
+      total: map['total'] != null ? parseDouble(map['total']) : null,
       deliveryDate: map['delivery_date']?.toString(),
       deliveryTime: map['delivery_time']?.toString(),
       createdAt: map['created_at']?.toString() ?? map['createdAt'] ?? '',

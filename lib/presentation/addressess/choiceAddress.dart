@@ -102,8 +102,195 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
     return Icons.location_on;
   }
 
-  /// Called when user taps the check icon. Calls API to set address as default, then refreshes list.
+  /// Map thumbnail - circular placeholder with location pin
+  Widget _mapThumbnail(double lat, double lng) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.grey[200],
+        border: Border.all(color: Colors.grey[300]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.grey[300]!, Colors.grey[200]!],
+                ),
+              ),
+            ),
+            Center(
+              child: Icon(Icons.location_on, color: _redPrimary, size: 28),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddressCard(DeliveryAddressModel a, bool isDefault) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        GestureDetector(
+          onTap: () => _onUseAddress(a),
+          behavior: HitTestBehavior.opaque,
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 16, top: 8),
+            shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isDefault ? _redPrimary : Colors.grey[200]!,
+              width: isDefault ? 2 : 1,
+            ),
+          ),
+          elevation: 2,
+          shadowColor: Colors.black.withOpacity(0.06),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFE0B2),
+                          shape: BoxShape.circle,
+                        ),
+                            child: Icon(_iconForLabel(a.label), color: _redPrimary, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 17,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                if (a.buildingNumber.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    a.buildingNumber,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[800],
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                                if (a.phone != null && a.phone!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    a.phone!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _mapThumbnail(a.latitude, a.longitude),
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          // TODO: edit address
+                        } else if (value == 'delete') {
+                          _onDeleteAddress(a);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                        const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        ),
+        if (isDefault)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Transform.rotate(
+              angle: 0.785398,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _redPrimary,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _redPrimary.withOpacity(0.4),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'SELECTED',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Optimistic update: tap anywhere on card to set as default. No refetch, no reorder.
   Future<void> _onUseAddress(DeliveryAddressModel a) async {
+    if (a.isDefault) return;
+    final previousDefaultId = _selectedId;
+    setState(() {
+      _addresses = _addresses
+          .map((addr) => addr.copyWith(isDefault: addr.id == a.id))
+          .toList();
+      _selectedId = a.id;
+    });
     try {
       final auth = AuthService();
       await auth.useAddress(a.id);
@@ -115,7 +302,47 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
           duration: Duration(seconds: 2),
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _addresses = _addresses
+            .map((addr) => addr.copyWith(isDefault: addr.id == previousDefaultId))
+            .toList();
+        _selectedId = previousDefaultId;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _onDeleteAddress(DeliveryAddressModel a) async {
+    try {
+      final auth = AuthService();
+      final response = await auth.deleteAddress(a.id);
+      if (!mounted) return;
+      final message = response['message']?.toString() ?? '';
+      // Always refresh the list after delete
       await _loadAddresses();
+      if (!mounted) return;
+      if (message == 'Address deleted successfully') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Address deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message.isNotEmpty ? message : 'Address could not be deleted'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -253,140 +480,7 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
                             itemBuilder: (context, index) {
                               final a = _addresses[index];
                               final isDefault = a.isDefault;
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(
-                                    color: isDefault ? _redPrimary.withOpacity(0.5) : Colors.grey[200]!,
-                                    width: isDefault ? 2 : 1,
-                                  ),
-                                ),
-                                elevation: 2,
-                                shadowColor: Colors.black.withOpacity(0.06),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            _iconForLabel(a.label),
-                                            color: _redPrimary,
-                                            size: 24,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  a.label,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  a.street,
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.grey[700],
-                                                    height: 1.3,
-                                                  ),
-                                                  maxLines: 3,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                if (a.city.isNotEmpty) ...[
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    a.city,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                  ),
-                                                ],
-                                                if (a.phone != null && a.phone!.isNotEmpty) ...[
-                                                  const SizedBox(height: 6),
-                                                  Text(
-                                                    a.phone!,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey[700],
-                                                    ),
-                                                  ),
-                                                ],
-                                                const SizedBox(height: 6),
-                                                GestureDetector(
-                                                  onTap: () {
-                                                    // TODO: open map with lat/lng
-                                                  },
-                                                  child: const Text(
-                                                    'View on map',
-                                                    style: TextStyle(
-                                                      color: Colors.blue,
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          // Check icon: clickable, red when is_default true, normal when false
-                                          GestureDetector(
-                                            onTap: () => _onUseAddress(a),
-                                            child: Container(
-                                              width: 28,
-                                              height: 28,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                color: isDefault ? _redPrimary : Colors.white,
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: isDefault ? _redPrimary : Colors.grey[400]!,
-                                                  width: 2,
-                                                ),
-                                              ),
-                                              child: Icon(
-                                                Icons.check,
-                                                size: 18,
-                                                color: isDefault ? Colors.white : Colors.grey[500],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: [
-                                          PopupMenuButton<String>(
-                                            padding: EdgeInsets.zero,
-                                            icon: Icon(Icons.more_horiz, color: Colors.grey[600], size: 22),
-                                            onSelected: (value) {
-                                              if (value == 'edit') {
-                                                // TODO: edit address
-                                              } else if (value == 'delete') {
-                                                // TODO: delete address
-                                              }
-                                            },
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                              const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
+                              return _buildAddressCard(a, isDefault);
                             },
                           ),
           ),
@@ -440,22 +534,17 @@ class _AddressDetailsSheet extends StatefulWidget {
 
 class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _streetController = TextEditingController();
   final _buildingController = TextEditingController();
-  final _apartmentNumberController = TextEditingController();
-  final _cityController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
   String _addressType = 'Home';
   bool _saving = false;
   bool _gettingLocation = false;
+  bool _hasCurrentLocation = false;
 
   @override
   void dispose() {
-    _streetController.dispose();
     _buildingController.dispose();
-    _apartmentNumberController.dispose();
-    _cityController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
     super.dispose();
@@ -503,6 +592,7 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
       setState(() {
         _latitudeController.text = position.latitude.toString();
         _longitudeController.text = position.longitude.toString();
+        _hasCurrentLocation = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -560,7 +650,27 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in Building number'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (!_hasCurrentLocation) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please tap "Use my current location" to set your delivery position'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -568,31 +678,26 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
       final lat = _parseLatLng(_latitudeController, 0.0);
       final lng = _parseLatLng(_longitudeController, 0.0);
       await auth.createAddress(
-        street: _streetController.text.trim(),
+        street: 'for now not yet',
         buildingNumber: _buildingController.text.trim(),
-        apartmentNumber: _apartmentNumberController.text.trim(),
-        city: _cityController.text.trim().isEmpty ? 'City' : _cityController.text.trim(),
+        apartmentNumber: 'for now not yet',
+        city: 'for now not yet',
         latitude: lat,
         longitude: lng,
         isDefault: false,
         receiverName: null,
+        label: _addressType,
         addressType: _addressType,
       );
       if (!mounted) return;
-      final added = DeliveryAddressModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: '',
-        label: _addressType,
-        street: _streetController.text.trim(),
-        city: _cityController.text.trim(),
-        postalCode: '',
-        country: '',
-        latitude: lat,
-        longitude: lng,
-        phone: null,
-        isDefault: false,
-      );
-      Navigator.of(context).pop(added);
+      // Fetch all addresses from API - the new one will have the real ID
+      final list = await auth.allMyAddresses();
+      if (!mounted) return;
+      if (list.isNotEmpty) {
+        Navigator.of(context).pop(list.last);
+      } else {
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -701,26 +806,9 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                       ),
                       const SizedBox(height: 24),
                       TextFormField(
-                        controller: _streetController,
-                        decoration: _addressFieldDecoration('Street *', 'Street'),
-                        validator: (v) => _validateRequired(v, 'Street'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
                         controller: _buildingController,
                         decoration: _addressFieldDecoration('Building number *', 'Building number'),
                         validator: (v) => _validateRequired(v, 'Building number'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _apartmentNumberController,
-                        decoration: _addressFieldDecoration('Apartment number (optional)', 'Apartment number'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _cityController,
-                        decoration: _addressFieldDecoration('City *', 'City'),
-                        validator: (v) => _validateRequired(v, 'City'),
                       ),
                       const SizedBox(height: 20),
                       OutlinedButton.icon(
@@ -731,36 +819,19 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                                 height: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.my_location, size: 20),
-                        label: Text(_gettingLocation ? 'Getting location...' : 'Use my current location'),
+                            : Icon(Icons.my_location, size: 20, color: _hasCurrentLocation ? Colors.green : _redPrimary),
+                        label: Text(
+                          _gettingLocation ? 'Getting location...' : 'Use my current location',
+                          style: TextStyle(color: _hasCurrentLocation ? Colors.green : _redPrimary, fontWeight: _hasCurrentLocation ? FontWeight.w600 : null),
+                        ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: _redPrimary,
-                          side: const BorderSide(color: _redPrimary),
+                          foregroundColor: _hasCurrentLocation ? Colors.green : _redPrimary,
+                          side: BorderSide(color: _hasCurrentLocation ? Colors.green : _redPrimary),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _latitudeController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                              decoration: _addressFieldDecoration('Latitude (optional)', 'e.g. 40.7128'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _longitudeController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                              decoration: _addressFieldDecoration('Longitude (optional)', 'e.g. -74.0060'),
-                            ),
-                          ),
-                        ],
                       ),
                       const SizedBox(height: 28),
                       SizedBox(
