@@ -6,7 +6,9 @@ import 'package:vlog/Utils/api_exception.dart';
 const Color _purplePrimary = Color(0xFF7C4DFF);
 
 class Addresses extends StatefulWidget {
-  const Addresses({super.key});
+  final bool showWelcomeOverlay;
+
+  const Addresses({super.key, this.showWelcomeOverlay = false});
 
   @override
   State<Addresses> createState() => _AddressesState();
@@ -69,7 +71,10 @@ class _AddressesState extends State<Addresses> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => MainScreen(token: null),
+          builder: (_) => MainScreen(
+            token: null,
+            showWelcomeOverlay: widget.showWelcomeOverlay,
+          ),
         ),
       );
     } on ApiException catch (e) {

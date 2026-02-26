@@ -269,7 +269,7 @@ class _CategoryItemsState extends State<CategoryItems> {
                       child: TextField(
                         decoration: InputDecoration(
                           contentPadding: const EdgeInsets.all(5),
-                          hintText: "${widget.category}",
+                          hintText: widget.category,
                           hintStyle: const TextStyle(color: Colors.black38),
                           border: const OutlineInputBorder(
                             borderSide: BorderSide.none,

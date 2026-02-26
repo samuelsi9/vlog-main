@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/api_exception.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/presentation/addressess/addresses.dart';
+import 'package:vlog/presentation/home.dart';
+import 'package:vlog/presentation/auth/complete_phone_screen.dart';
 import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-// Design colors: red & white (same as login page)
-const Color _primaryRed = Color(0xFFD32F2F);
+// Design colors: red & white (match login)
+const Color _primaryRed = Color(0xFFE53E3E);
+const Color _primaryRedDark = Color(0xFFC62828);
 const Color _lightGrey = Color(0xFF9E9E9E);
 
 class RegisterPage extends StatefulWidget {
@@ -31,6 +33,7 @@ class _RegisterPageState extends State<RegisterPage>
   final confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String _completePhoneNumber = '';
   late AnimationController _textKoliagoController;
   late Animation<double> _textKoliagoScale;
   late AnimationController _pageController;
@@ -101,76 +104,30 @@ class _RegisterPageState extends State<RegisterPage>
 
   Future<void> _signUpWithGoogle() async {
     try {
-      const String iosClientId =
-          '262189303234-ff2c12r8mcfjhmh9gk3dk0k1fl9igs7e.apps.googleusercontent.com';
-      await GoogleSignIn.instance.initialize(clientId: iosClientId);
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
-
-      final String? idToken = googleUser.authentication.idToken;
-      if (idToken == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google sign-in: no ID token')),
-        );
-        return;
-      }
-
-      String? accessToken;
-      try {
-        final authz = await googleUser.authorizationClient.authorizeScopes(
-          <String>[
-            'openid',
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile',
-          ],
-        );
-        accessToken = authz.accessToken;
-      } catch (_) {
-        // Firebase can work with idToken only
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-        accessToken: accessToken,
+      await AuthService.signInWithGoogle();
+      if (!mounted) return;
+      final user = await StorageService.getUser();
+      final userId = user?['id']?.toString();
+      final phone = user?['phone'];
+      final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => hasPhone
+              ? MainScreen(token: userId, showWelcomeOverlay: true)
+              : const CompletePhoneScreen(),
+        ),
       );
-
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      if (userCredential.user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', userCredential.user!.uid);
-        await prefs.setString('auth_user', jsonEncode({
-          'id': userCredential.user!.uid,
-          'email': userCredential.user!.email,
-          'name': userCredential.user!.displayName,
-        }));
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration with Google successful!')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const Addresses(),
-          ),
-        );
-      }
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return; // User cancelled
-      }
+      if (e.code == GoogleSignInExceptionCode.canceled) return;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Google registration failed: ${e.description ?? e}')),
+        SnackBar(content: Text('Google sign-in failed: ${e.description ?? e}')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google registration failed: ${e.toString()}')),
+        SnackBar(content: Text('Google sign-in failed: ${e.toString()}')),
       );
     }
   }
@@ -179,13 +136,16 @@ class _RegisterPageState extends State<RegisterPage>
     try {
       await AuthService.signInWithApple();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration with Apple successful!'), backgroundColor: Colors.green),
-      );
+      final user = await StorageService.getUser();
+      final userId = user?['id']?.toString();
+      final phone = user?['phone'];
+      final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const Addresses(),
+          builder: (_) => hasPhone
+              ? MainScreen(token: userId, showWelcomeOverlay: true)
+              : const CompletePhoneScreen(),
         ),
       );
     } on SignInWithAppleAuthorizationException catch (e) {
@@ -233,17 +193,6 @@ class _RegisterPageState extends State<RegisterPage>
     return null;
   }
 
-  String? _validatePhone(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Phone number is required';
-    }
-    final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-    if (digitsOnly.length < 8) {
-      return 'Enter a valid phone number';
-    }
-    return null;
-  }
-
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Password is required';
@@ -276,6 +225,7 @@ class _RegisterPageState extends State<RegisterPage>
   // }
 
   void signUserUp() async {
+    _formKey.currentState!.save();
     if (_formKey.currentState!.validate()) {
       // Call API; show success only after API succeeds, error only on failure
       try {
@@ -283,24 +233,17 @@ class _RegisterPageState extends State<RegisterPage>
         final result = await authService.register(
           name: '${firstNameController.text} ${lastNameController.text}',
           email: emailController.text,
-          phone: phoneController.text.trim(),
+          phone: _completePhoneNumber,
           password: passwordController.text,
           role: "2",
         );
 
         if (result.isNotEmpty && result['user'] != null) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Registration successful!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            // Navigate to Addresses screen, then user can save address and go to real home
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const Addresses(),
+                builder: (context) => const Addresses(showWelcomeOverlay: true),
               ),
             );
           }
@@ -334,9 +277,10 @@ class _RegisterPageState extends State<RegisterPage>
     }
   }
 
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
+  InputDecoration _inputDecoration(String hint, {IconData? icon}) => InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
+        prefixIcon: icon != null ? Icon(icon, color: _lightGrey, size: 22) : null,
         filled: true,
         fillColor: Colors.grey.shade50,
         border: OutlineInputBorder(
@@ -347,6 +291,10 @@ class _RegisterPageState extends State<RegisterPage>
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.grey.shade200),
         ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _primaryRed, width: 2),
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       );
 
@@ -354,26 +302,31 @@ class _RegisterPageState extends State<RegisterPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             children: [
-              // Top red section: logo + app name (3D effect)
+              // Gradient header: Vlog + Create Account
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 44),
                 decoration: BoxDecoration(
-                  color: _primaryRed,
+                  gradient: const LinearGradient(
+                    colors: [_primaryRed, _primaryRedDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(28),
-                    bottomRight: Radius.circular(28),
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: _primaryRed.withOpacity(0.4),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
-                      spreadRadius: 0,
                     ),
                   ],
                 ),
@@ -381,61 +334,34 @@ class _RegisterPageState extends State<RegisterPage>
                   children: [
                     FadeTransition(
                       opacity: _fadeKoliago,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.5),
-                          end: Offset.zero,
-                        ).animate(_fadeKoliago),
-                        child: ScaleTransition(
-                          scale: Tween<double>(begin: 0.5, end: 1.0).animate(
-                            CurvedAnimation(
-                              parent: _pageController,
-                              curve: const Interval(0.0, 0.25, curve: Curves.easeOutBack),
-                            ),
-                          ),
-                          child: AnimatedBuilder(
-                            animation: _textKoliagoScale,
-                            builder: (context, child) {
-                              return Transform.scale(
-                                scale: _textKoliagoScale.value,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 28,
-                                    vertical: 18,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.9),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.08),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 6),
-                                        spreadRadius: 0,
-                                      ),
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                        spreadRadius: 0,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Image.asset(
-                                    'assets/koliago_logo.png',
-                                    height: 64,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                      child: const Text(
+                        'Vlog',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Join us today and start enjoying fast delivery.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -479,40 +405,57 @@ class _RegisterPageState extends State<RegisterPage>
                 ),
               ),
 
-              // FadeTransition(
-              //   opacity: _slideOr,
-              //   child: Padding(
-              //     padding: const EdgeInsets.symmetric(vertical: 20),
-              //     child: Text(
-              //       'or',
-              //       style: TextStyle(color: _lightGrey, fontSize: 15),
-              //     ),
-              //   ),
-              // ),
-
-              // Social icons (Google, Apple)
+              // Or continue with + Social buttons
+              FadeTransition(
+                opacity: _slideOr,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Or continue with',
+                          style: TextStyle(
+                            color: _lightGrey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                    ],
+                  ),
+                ),
+              ),
               SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.3),
-                  end: Offset.zero,
-                ).animate(_slideSocial),
+                position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(_slideSocial),
                 child: FadeTransition(
                   opacity: _slideSocial,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _RegisterSocialIcon(
-                        icon: Icons.g_mobiledata,
-                        color: const Color(0xFF4285F4),
-                        onTap: _signUpWithGoogle,
-                      ),
-                      const SizedBox(width: 20),
-                      _RegisterSocialIcon(
-                        icon: Icons.apple,
-                        color: Colors.black,
-                        onTap: _signUpWithApple,
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _RegisterSocialButton(
+                            imageAsset: 'assets/googleLogo.png',
+                            label: 'Google',
+                            color: const Color(0xFF4285F4),
+                            onTap: _signUpWithGoogle,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _RegisterSocialButton(
+                            icon: Icons.apple,
+                            label: 'Apple',
+                            color: Colors.black,
+                            onTap: _signUpWithApple,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -534,34 +477,48 @@ class _RegisterPageState extends State<RegisterPage>
                         children: [
                           TextFormField(
                             controller: firstNameController,
-                            decoration: _inputDecoration('First Name'),
+                            decoration: _inputDecoration('First Name', icon: Icons.person_outline),
                             validator: _validateFirstName,
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: lastNameController,
-                            decoration: _inputDecoration('Last Name'),
+                            decoration: _inputDecoration('Last Name', icon: Icons.person_outline),
                             validator: _validateLastName,
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: emailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: _inputDecoration('Enter Email'),
+                            decoration: _inputDecoration('Email Address', icon: Icons.email_outlined),
                             validator: _validateEmail,
                           ),
                           const SizedBox(height: 14),
-                          TextFormField(
+                          IntlPhoneField(
                             controller: phoneController,
-                            keyboardType: TextInputType.phone,
                             decoration: _inputDecoration('Phone Number'),
-                            validator: _validatePhone,
+                            initialCountryCode: 'US',
+                            onChanged: (phone) {
+                              _completePhoneNumber = phone.completeNumber;
+                            },
+                            onSaved: (phone) {
+                              if (phone != null) _completePhoneNumber = phone.completeNumber;
+                            },
+                            validator: (value) {
+                              if (value == null || value.number.isEmpty) {
+                                return 'Phone number is required';
+                              }
+                              if (value.number.length < 8) {
+                                return 'Enter a valid phone number';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: passwordController,
                             obscureText: _obscurePassword,
-                            decoration: _inputDecoration('Enter Password').copyWith(
+                            decoration: _inputDecoration('Password', icon: Icons.lock_outline).copyWith(
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
@@ -579,7 +536,7 @@ class _RegisterPageState extends State<RegisterPage>
                           TextFormField(
                             controller: confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
-                            decoration: _inputDecoration('Confirm Password').copyWith(
+                            decoration: _inputDecoration('Confirm your password', icon: Icons.lock_outline).copyWith(
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword
@@ -594,56 +551,53 @@ class _RegisterPageState extends State<RegisterPage>
                             ),
                             validator: _validateConfirmPassword,
                           ),
-                          const SizedBox(height: 20),
-                          Text(
-                            "Already have an account? ",
-                            style: TextStyle(color: _lightGrey, fontSize: 14),
-                          ),
-                          const SizedBox(height: 4),
-                          GestureDetector(
-                            onTap: () => Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LoginPage(),
+                          const SizedBox(height: 28),
+                          SizedBox(
+                            height: 56,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryRed,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              'Sign in',
-                              style: TextStyle(
-                                color: _primaryRed,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Transform(
-                            transform: Matrix4.identity()
-                              ..setEntry(3, 2, 0.001)
-                              ..rotateX(-0.02),
-                            alignment: Alignment.center,
-                            child: SizedBox(
-                              height: 54,
-                              child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _primaryRed,
-                              foregroundColor: Colors.white,
-                              elevation: 8,
-                              shadowColor: Colors.black.withOpacity(0.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                                onPressed: signUserUp,
-                                child: const Text(
-                                  'Continue',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              onPressed: signUserUp,
+                              child: const Text(
+                                'Sign Up',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 28),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Already have an account? ",
+                                style: TextStyle(color: _lightGrey, fontSize: 14),
+                              ),
+                              GestureDetector(
+                                onTap: () => Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginPage(),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Sign in',
+                                  style: TextStyle(
+                                    color: _primaryRed,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -703,37 +657,52 @@ class _RegisterTabChip extends StatelessWidget {
   }
 }
 
-class _RegisterSocialIcon extends StatelessWidget {
-  final IconData icon;
+class _RegisterSocialButton extends StatelessWidget {
+  final IconData? icon;
+  final String? imageAsset;
+  final String label;
   final Color color;
   final VoidCallback onTap;
 
-  const _RegisterSocialIcon({
-    required this.icon,
+  const _RegisterSocialButton({
+    this.icon,
+    this.imageAsset,
+    required this.label,
     required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Transform(
-      transform: Matrix4.identity()
-        ..setEntry(3, 2, 0.002)
-        ..rotateY(-0.05),
-      alignment: Alignment.center,
-      child: Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        elevation: 6,
-        shadowColor: Colors.black.withOpacity(0.35),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            child: Icon(icon, size: 28, color: color),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (imageAsset != null)
+                Image.asset(imageAsset!, width: 22, height: 22, fit: BoxFit.contain)
+              else if (icon != null)
+                Icon(icon!, size: 22, color: color),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/api_exception.dart';
+import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/presentation/home.dart';
+import 'package:vlog/presentation/auth/complete_phone_screen.dart';
 import 'package:vlog/presentation/auth/register_page.dart';
 import 'package:vlog/presentation/auth/forgot_password_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
-// Design colors: red & white
-const Color _primaryRed = Color(0xFFD32F2F);
+// Design colors: red & white (DishDash / EcoThrive style)
+const Color _primaryRed = Color(0xFFE53E3E);
+const Color _primaryRedDark = Color(0xFFC62828);
 const Color _lightGrey = Color(0xFF9E9E9E);
 
 class LoginPage extends StatefulWidget {
@@ -100,14 +103,13 @@ class _LoginPageState extends State<LoginPage>
       if (data.isNotEmpty && data['user'] != null) {
         final user = data['user'] as Map<String, dynamic>;
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Login successful'),
-          backgroundColor: Colors.green,
-        ));
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => MainScreen(token: user['id']?.toString()),
+            builder: (_) => MainScreen(
+              token: user['id']?.toString(),
+              showWelcomeOverlay: true,
+            ),
           ),
         );
       } else {
@@ -141,14 +143,18 @@ class _LoginPageState extends State<LoginPage>
 
   Future<void> _signInWithGoogle() async {
     try {
-      print('========== Google Sign-In (test) ==========');
       await AuthService.signInWithGoogle();
-      print('============================================');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Check console for Google Sign-In & API response'),
-          backgroundColor: Colors.green,
+      final user = await StorageService.getUser();
+      final userId = user?['id']?.toString();
+      final phone = user?['phone'];
+      final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => hasPhone
+              ? MainScreen(token: userId, showWelcomeOverlay: true)
+              : const CompletePhoneScreen(),
         ),
       );
     } on GoogleSignInException catch (e) {
@@ -169,13 +175,16 @@ class _LoginPageState extends State<LoginPage>
     try {
       await AuthService.signInWithApple();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Apple sign-in successful'), backgroundColor: Colors.green),
-      );
+      final user = await StorageService.getUser();
+      final userId = user?['id']?.toString();
+      final phone = user?['phone'];
+      final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => MainScreen(token: null),
+          builder: (_) => hasPhone
+              ? MainScreen(token: userId, showWelcomeOverlay: true)
+              : const CompletePhoneScreen(),
         ),
       );
     } on SignInWithAppleAuthorizationException catch (e) {
@@ -196,88 +205,66 @@ class _LoginPageState extends State<LoginPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             children: [
-              // —— Top red section: logo + app name (3D effect) ——
+              // —— Gradient header: logo + Welcome Back ——
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 44),
                 decoration: BoxDecoration(
-                  color: _primaryRed,
+                  gradient: const LinearGradient(
+                    colors: [_primaryRed, _primaryRedDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(28),
-                    bottomRight: Radius.circular(28),
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: _primaryRed.withOpacity(0.4),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
-                      spreadRadius: 0,
                     ),
                   ],
                 ),
                 child: Column(
-                children: [
+                  children: [
                     FadeTransition(
                       opacity: _fadeKoliago,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.5),
-                          end: Offset.zero,
-                        ).animate(_fadeKoliago),
-                        child: ScaleTransition(
-                          scale: Tween<double>(begin: 0.5, end: 1.0).animate(
-                            CurvedAnimation(
-                              parent: _pageController,
-                              curve: const Interval(0.0, 0.25, curve: Curves.easeOutBack),
-                            ),
-                          ),
-                          child: AnimatedBuilder(
-                            animation: _textKoliagoScale,
-                            builder: (context, child) {
-                              return Transform.scale(
-                                scale: _textKoliagoScale.value,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 28,
-                                    vertical: 18,
-                                  ),
-                    decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.9),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.08),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 6),
-                                        spreadRadius: 0,
-                                      ),
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                        spreadRadius: 0,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Image.asset(
-                                    'assets/koliago_logo.png',
-                                    height: 64,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                      child: const Text(
+                        'Vlog',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Welcome Back',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sign in to continue ordering your favorite meals.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -322,44 +309,57 @@ class _LoginPageState extends State<LoginPage>
               ),
               ),
 
-              // —— or ——
-              // FadeTransition(
-              //   opacity: _slideOr,
-              //   child: Padding(
-              //     padding: const EdgeInsets.symmetric(vertical: 20),
-              //     child: Text(
-              //       'or',
-              //       style: TextStyle(
-              //         color: _lightGrey,
-              //         fontSize: 15,
-              //       ),
-              //     ),
-              //   ),
-              // ),
-
-              // —— Social login icons (Google, Apple) ——
+              // —— Or continue with + Social buttons ——
+              FadeTransition(
+                opacity: _slideOr,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Or continue with',
+                          style: TextStyle(
+                            color: _lightGrey,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                    ],
+                  ),
+                ),
+              ),
               SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.3),
-                  end: Offset.zero,
-                ).animate(_slideSocial),
+                position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(_slideSocial),
                 child: FadeTransition(
                   opacity: _slideSocial,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _SocialIcon(
-                        icon: Icons.g_mobiledata,
-                        color: const Color(0xFF4285F4),
-                        onTap: _signInWithGoogle,
-                      ),
-                      const SizedBox(width: 20),
-                      _SocialIcon(
-                        icon: Icons.apple,
-                        color: Colors.black,
-                        onTap: _signInWithApple,
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SocialButton(
+                            imageAsset: 'assets/googleLogo.png',
+                            label: 'Google',
+                            color: const Color(0xFF4285F4),
+                            onTap: _signInWithGoogle,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SocialButton(
+                            icon: Icons.apple,
+                            label: 'Apple',
+                            color: Colors.black,
+                            onTap: _signInWithApple,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -383,8 +383,9 @@ class _LoginPageState extends State<LoginPage>
                       controller: usernameController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                          hintText: 'Enter Email or Mobile',
+                          hintText: 'Enter your email',
                           hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
+                          prefixIcon: Icon(Icons.email_outlined, color: _lightGrey, size: 22),
                         filled: true,
                           fillColor: Colors.grey.shade50,
                         border: OutlineInputBorder(
@@ -394,6 +395,10 @@ class _LoginPageState extends State<LoginPage>
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(color: _primaryRed, width: 2),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -418,8 +423,9 @@ class _LoginPageState extends State<LoginPage>
                       controller: passwordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
-                          hintText: 'Enter Password',
+                          hintText: 'Enter your password',
                           hintStyle: TextStyle(color: _lightGrey, fontSize: 15),
+                          prefixIcon: Icon(Icons.lock_outline, color: _lightGrey, size: 22),
                           filled: true,
                           fillColor: Colors.grey.shade50,
                           border: OutlineInputBorder(
@@ -429,6 +435,10 @@ class _LoginPageState extends State<LoginPage>
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(color: _primaryRed, width: 2),
                           ),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -467,67 +477,63 @@ class _LoginPageState extends State<LoginPage>
                           child: Text(
                             'Forgot password?',
                             style: TextStyle(
-                              color: _lightGrey,
-                              fontSize: 13,
+                              color: _primaryRed,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        "Don't have an account? ",
-                        style: TextStyle(
-                          color: _lightGrey,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterPage(),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        height: 56,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryRed,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        },
-                    child: Text(
-                          'Sign up',
-                          style: TextStyle(
-                            color: _primaryRed,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                          ),
+                          onPressed: signUserIn,
+                          child: const Text(
+                            'Sign In',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      Transform(
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateX(-0.02),
-                        alignment: Alignment.center,
-                        child: SizedBox(
-                          height: 54,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _primaryRed,
-                              foregroundColor: Colors.white,
-                              elevation: 8,
-                              shadowColor: Colors.black.withOpacity(0.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: signUserIn,
-                            child: const Text(
-                              'Continue',
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Don't have an account? ",
+                            style: TextStyle(color: _lightGrey, fontSize: 14),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const RegisterPage(),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              'Sign up',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                color: _primaryRed,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
                               ),
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
+                    const SizedBox(height: 24),
                 ],
               ),
                       ),
@@ -586,37 +592,54 @@ class _TabChip extends StatelessWidget {
   }
 }
 
-class _SocialIcon extends StatelessWidget {
-  final IconData icon;
+class _SocialButton extends StatelessWidget {
+  final IconData? icon;
+  final String? imageAsset;
+  final String label;
   final Color color;
   final VoidCallback onTap;
 
-  const _SocialIcon({
-    required this.icon,
+  const _SocialButton({
+    this.icon,
+    this.imageAsset,
+    required this.label,
     required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Transform(
-      transform: Matrix4.identity()
-        ..setEntry(3, 2, 0.002)
-        ..rotateY(-0.05),
-      alignment: Alignment.center,
-      child: Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        elevation: 6,
-        shadowColor: Colors.black.withOpacity(0.35),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            child: Icon(icon, size: 28, color: color),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (imageAsset != null)
+                Image.asset(imageAsset!, width: 22, height: 22, fit: BoxFit.contain)
+              else if (icon != null)
+                Icon(icon!, size: 22, color: color),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
           ),
         ),
       ),

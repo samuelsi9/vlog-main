@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/product_model.dart';
@@ -13,7 +14,8 @@ import 'package:vlog/Models/order_history_model.dart';
 import 'package:vlog/Models/wishlist_model.dart';
 import 'package:vlog/Models/notification_model.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart' as sign_in_with_apple;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+
 
 class AuthService {
   final Dio _dio = Dio(
@@ -297,6 +299,33 @@ class AuthService {
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Failed to upload avatar: $e');
+    }
+  }
+
+  /// Update user phone number. PATCH /api/updatephone with auth token.
+  /// [phone] - Full phone number (e.g. "906788898999").
+  /// Returns { "message": "...", "user": { ... } }.
+  Future<Map<String, dynamic>> updatePhone(String phone) async {
+    final token = await StorageService.getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('No authentication token found. Please log in first.');
+    }
+    try {
+      final response = await _dio.patch(
+        '/api/updatephone',
+        data: {'phone': phone},
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) return data;
+        return <String, dynamic>{};
+      }
+      throw Exception('Failed to update phone: ${response.statusCode}');
+    } on DioException catch (e) {
+      ApiErrorHandler.handle(e);
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Failed to update phone: $e');
     }
   }
 
@@ -1007,7 +1036,9 @@ class AuthService {
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data as Map<String, dynamic>;
-        print('========== Google Login API response ==========');
+        print('========== Google Login API Response ==========');
+        print('Endpoint: $url');
+        print('Status: ${response.statusCode}');
         print('access_token: ${data['access_token']}');
         print('token_type: ${data['token_type']}');
         print('user: ${data['user']}');
@@ -1031,13 +1062,12 @@ class AuthService {
   static Future<void> signInWithGoogle() async {
   try {
     // Use WEB CLIENT ID here (NOT iOS client ID)
-    await GoogleSignIn.instance.initialize(
-      serverClientId: '626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com',
-    );
+    // await GoogleSignIn.instance.initialize(
+    //   serverClientId: '626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com',
+    // );
 
     final GoogleSignInAccount user =
         await GoogleSignIn.instance.authenticate();
-
     final String? idToken = user.authentication.idToken;
 
     print('========== Google Sign-In ==========');
@@ -1077,10 +1107,11 @@ class AuthService {
     } else {
       print('Google Sign-In error: $e');
     }
+    rethrow;
   } catch (e) {
     print('Google Sign-In error: $e');
     rethrow;
-    }
+  }
   }
 
   /// Apple Sign-In: sends identity_token to Laravel backend.
@@ -1125,41 +1156,56 @@ class AuthService {
     return {};
   }
 
-  /// Sign in with Apple: gets credential, sends to Laravel, saves token and navigates.
+  /// Sign in with Apple: gets credential, sends to Laravel backend, saves token and user.
   static Future<void> signInWithApple() async {
-    try {
-      final credential = await sign_in_with_apple.SignInWithApple.getAppleIDCredential(
-        scopes: [
-          sign_in_with_apple.AppleIDAuthorizationScopes.email,
-          sign_in_with_apple.AppleIDAuthorizationScopes.fullName,
-        ],
-      );
-      final identityToken = credential.identityToken;
-      if (identityToken == null || identityToken.isEmpty) {
-        throw Exception('Apple identity token is empty');
-      }
-      final name = '${credential.givenName ?? ''} ${credential.familyName ?? ''}'.trim();
-      final email = credential.email;
-      final apiResponse = await appleLogin(
-        identityToken: identityToken,
-        authorizationCode: credential.authorizationCode,
-        email: email?.isNotEmpty == true ? email : null,
-        name: name.isNotEmpty ? name : null,
-      );
-      if (apiResponse.isNotEmpty) {
-        final accessToken = apiResponse['access_token'] as String?;
-        final tokenType = apiResponse['token_type'] as String? ?? 'Bearer';
-        final userData = apiResponse['user'] as Map<String, dynamic>?;
-        if (accessToken != null && accessToken.isNotEmpty) {
-          await StorageService.saveToken(accessToken);
-          await StorageService.saveTokenType(tokenType);
-          if (userData != null) {
-            await StorageService.saveUser(userData);
-          }
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+
+    // Test output
+    print('========== Apple Sign-In (test) ==========');
+    print('userIdentifier: ${credential.userIdentifier}');
+    print('email: ${credential.email}');
+    print('givenName: ${credential.givenName}, familyName: ${credential.familyName}');
+    print('identityToken: ${credential.identityToken?.isNotEmpty == true ? "(present)" : "(null/empty)"}');
+    print('authorizationCode: ${"(present)"}');
+
+    final String? identityToken = credential.identityToken;
+    if (identityToken == null || identityToken.isEmpty) {
+      throw Exception('Apple Sign-In: identity token is null or empty');
+    }
+
+    final name = [
+      credential.givenName,
+      credential.familyName,
+    ].whereType<String>().join(' ').trim();
+    final nameOrNull = name.isEmpty ? null : name;
+
+    final apiResponse = await appleLogin(
+      identityToken: identityToken,
+      authorizationCode: credential.authorizationCode,
+      email: credential.email,
+      name: nameOrNull,
+    );
+
+    print('API response: $apiResponse');
+    print('=========================================');
+
+    if (apiResponse.isNotEmpty) {
+      final accessToken = apiResponse['access_token'] as String?;
+      final tokenType = apiResponse['token_type'] as String? ?? 'Bearer';
+      final userData = apiResponse['user'] as Map<String, dynamic>?;
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await StorageService.saveToken(accessToken);
+        await StorageService.saveTokenType(tokenType);
+        if (userData != null) {
+          await StorageService.saveUser(userData);
         }
+        print('Token and user saved to StorageService');
       }
-    } catch (e) {
-      rethrow;
     }
   }
 

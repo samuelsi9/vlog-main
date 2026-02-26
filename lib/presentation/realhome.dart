@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:vlog/Models/category_model.dart';
 import 'package:vlog/Models/model.dart';
@@ -62,7 +63,14 @@ class SmoothPageRoute<T> extends PageRouteBuilder<T> {
 }
 
 class Realhome extends StatefulWidget {
-  const Realhome({super.key});
+  final bool showWelcomeOverlay;
+  final VoidCallback? onWelcomeOverlayShown;
+
+  const Realhome({
+    super.key,
+    this.showWelcomeOverlay = false,
+    this.onWelcomeOverlayShown,
+  });
 
   @override
   State<Realhome> createState() => _RealhomeState();
@@ -121,6 +129,10 @@ class _RealhomeState extends State<Realhome> {
 
   String _userDisplayName = 'Guest';
 
+  // Welcome overlay shown after login/register
+  bool _showWelcomeOverlay = false;
+  Timer? _welcomeOverlayTimer;
+
   @override
   void initState() {
     super.initState();
@@ -130,6 +142,19 @@ class _RealhomeState extends State<Realhome> {
     _fetchProducts();
     _fetchCategories();
     _startBannerTimer();
+
+    if (widget.showWelcomeOverlay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!mounted) return;
+          setState(() => _showWelcomeOverlay = true);
+          widget.onWelcomeOverlayShown?.call();
+          _welcomeOverlayTimer = Timer(const Duration(milliseconds: 2500), () {
+            if (mounted) setState(() => _showWelcomeOverlay = false);
+          });
+        });
+      });
+    }
   }
 
   void _startBannerTimer() {
@@ -287,6 +312,7 @@ class _RealhomeState extends State<Realhome> {
 
   @override
   void dispose() {
+    _welcomeOverlayTimer?.cancel();
     _bannerTimer?.cancel();
     _bannerPageController.dispose();
     _searchController.dispose();
@@ -505,7 +531,9 @@ class _RealhomeState extends State<Realhome> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
@@ -1397,6 +1425,24 @@ class _RealhomeState extends State<Realhome> {
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        ),
+        if (_showWelcomeOverlay)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.95,
+                  height: MediaQuery.of(context).size.width * 0.95,
+                  child: Lottie.asset(
+                    'assets/lottie/welcomesuccess.json',
+                    fit: BoxFit.contain,
+                    repeat: false,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

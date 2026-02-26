@@ -10,7 +10,13 @@ import 'package:vlog/Utils/cart_service.dart';
 
 class MainScreen extends StatefulWidget {
   final String? token;
-  const MainScreen({super.key, required this.token});
+  final bool showWelcomeOverlay;
+
+  const MainScreen({
+    super.key,
+    required this.token,
+    this.showWelcomeOverlay = false,
+  });
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -18,10 +24,12 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
+  late bool _showWelcomeOverlay;
 
   @override
   void initState() {
     super.initState();
+    _showWelcomeOverlay = widget.showWelcomeOverlay;
     // Initialiser les données de démonstration du service de tracking
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final trackingService = Provider.of<DeliveryTrackingService>(
@@ -42,7 +50,14 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final List pages = [
-      Realhome(),
+      Realhome(
+        showWelcomeOverlay: _showWelcomeOverlay,
+        onWelcomeOverlayShown: () {
+          if (_showWelcomeOverlay) {
+            setState(() => _showWelcomeOverlay = false);
+          }
+        },
+      ),
       const SearchPage(),
       const WishlistPage(),
       const SupportQAPage(),

@@ -91,6 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadLocalProfile() async {
     final prefs = await SharedPreferences.getInstance();
     String? authName;
+    String? avatarUrl;
     final isLoggedIn = await StorageService.isLoggedIn();
     if (isLoggedIn) {
       final user = await StorageService.getUser();
@@ -109,6 +110,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         } else if (email != null && email.isNotEmpty) {
           authName = email;
         }
+        avatarUrl = user['avatar']?.toString().trim() ??
+            user['image']?.toString().trim();
       }
     }
     if (!mounted) return;
@@ -116,7 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _localProfileName = prefs.getString('profile_name');
       _localProfileImagePath = prefs.getString('profile_image_path');
       _authUserName = authName;
-      _profileAvatarUrl = prefs.getString('profile_avatar_url');
+      _profileAvatarUrl = avatarUrl ?? prefs.getString('profile_avatar_url');
     });
   }
 
@@ -153,12 +156,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return "Guest User";
   }
 
-  ImageProvider get _profileImage {
+  bool get _hasProfileImage {
+    if (_localProfileImagePath != null && _localProfileImagePath!.isNotEmpty) {
+      try {
+        File(_localProfileImagePath!);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+    if (_profileAvatarUrl != null &&
+        _profileAvatarUrl!.isNotEmpty &&
+        (_profileAvatarUrl!.startsWith('http://') || _profileAvatarUrl!.startsWith('https://'))) {
+      return true;
+    }
+    if (widget.user?.image != null &&
+        widget.user!.image.isNotEmpty &&
+        !widget.user!.image.startsWith('assets/')) {
+      return true;
+    }
+    return false;
+  }
+
+  ImageProvider? get _profileImage {
     if (_localProfileImagePath != null && _localProfileImagePath!.isNotEmpty) {
       try {
         return FileImage(File(_localProfileImagePath!));
-      } catch (e) {
-        return const AssetImage('assets/man.jpg');
+      } catch (_) {
+        return null;
       }
     }
     if (_profileAvatarUrl != null &&
@@ -171,7 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         !widget.user!.image.startsWith('assets/')) {
       return NetworkImage(widget.user!.image);
     }
-    return const AssetImage('assets/man.jpg');
+    return null;
   }
 
   // Color scheme matching the app
@@ -309,7 +334,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 child: CircleAvatar(
                                   radius: 50,
-                                  backgroundImage: _profileImage,
+                                  backgroundColor: _hasProfileImage ? null : Colors.grey.shade300,
+                                  backgroundImage: _hasProfileImage ? _profileImage : null,
+                                  child: _hasProfileImage
+                                      ? null
+                                      : Icon(
+                                          Icons.person,
+                                          size: 50,
+                                          color: Colors.grey.shade600,
+                                        ),
                                 ),
                               ),
                               Positioned(
