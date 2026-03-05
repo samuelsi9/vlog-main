@@ -10,7 +10,7 @@ class NotificationService {
   Future<void> initNotification() async{
     if(_isInitialized) return; //prevent re-initialization
     //prepare android init settings
-  const initSettingsAndroid=AndroidInitializationSettings('@mipmap/ic_launcher');
+  const initSettingsAndroid=AndroidInitializationSettings('@drawable/notification_icon');
     //prepare ios init settings
 
  const initSettingsIos=DarwinInitializationSettings(
@@ -42,6 +42,8 @@ NotificationDetails get notificationDetails => const NotificationDetails(
     channelDescription: "This channel is used for daily notifications",
     importance: Importance.max,
     priority: Priority.high,
+    icon: '@drawable/notification_icon',
+    largeIcon: DrawableResourceAndroidBitmap('@drawable/notification_icon'),
   ),
   iOS: DarwinNotificationDetails(),
 );

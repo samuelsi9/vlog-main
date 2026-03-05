@@ -2,7 +2,6 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vlog/Utils/api_exception.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Models/product_model.dart';
@@ -226,6 +225,34 @@ class AuthService {
       rethrow;
     }
     return {};
+  }
+
+  /// Delete user account. DELETE /api/delete-account/{userId} with auth token.
+  /// Response: { "message": "User account deleted successfully." }
+  /// On success, clears stored token and user data.
+  Future<String> deleteAccount(int userId) async {
+    try {
+      final token = await StorageService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login first.');
+      }
+      final response = await _dio.delete('/api/delete-account/$userId');
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        final data = response.data;
+        final message = (data is Map && data['message'] != null)
+            ? data['message'].toString()
+            : 'User account deleted successfully.';
+        await StorageService.clearAll();
+        return message;
+      }
+      throw Exception('Failed to delete account: ${response.statusCode}');
+    } on DioException catch (e) {
+      ApiErrorHandler.handle(e);
+    } catch (e) {
+      print('Unexpected error during deleteAccount: $e');
+      rethrow;
+    }
+    return '';
   }
 
   Future<String> logout() async {

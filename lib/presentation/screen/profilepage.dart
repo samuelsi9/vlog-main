@@ -519,7 +519,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisCount: 2,
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
-                            childAspectRatio: 0.68,
+                            childAspectRatio: 0.62,
                           ),
                           delegate: SliverChildBuilderDelegate(
                             (context, index) => _buildRelatedProductCard(_relatedProducts[index]),

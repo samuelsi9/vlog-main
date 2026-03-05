@@ -238,7 +238,7 @@ class _LoginPageState extends State<LoginPage>
                     FadeTransition(
                       opacity: _fadeKoliago,
                       child: const Text(
-                        'Vlog',
+                        'KoliaGo',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 28,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/storage_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -177,9 +178,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _deleteAccount() async {
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final scaffoldContext = context;
+
     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
+      context: scaffoldContext,
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -237,7 +242,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => navigator.pop(),
             child: Text(
               "Cancel",
               style: TextStyle(color: Colors.grey[700]),
@@ -245,22 +250,22 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              navigator.pop();
               // Show confirmation dialog
               final confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
+                context: scaffoldContext,
+                builder: (ctx2) => AlertDialog(
                   title: const Text("Final Confirmation"),
                   content: const Text(
                     "This is your last chance. Are you absolutely sure you want to delete your account?",
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(ctx2, false),
                       child: const Text("Cancel"),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(ctx2, true),
                       child: const Text(
                         "Delete Forever",
                         style: TextStyle(color: Colors.red),
@@ -271,24 +276,68 @@ class _SettingsPageState extends State<SettingsPage> {
               );
 
               if (confirm == true && mounted) {
-                // Delete all user data
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.clear();
-                
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Your account has been deleted successfully"),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  
-                  // Navigate to login page
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => LoginPage()),
-                    (route) => false,
-                  );
+                // Get user ID for API call
+                final user = await StorageService.getUser();
+                final userId = user?['id'];
+                if (userId == null) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text("Could not get user info. Please sign in again."),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                  return;
+                }
+
+                final userIdInt = userId is int ? userId : int.tryParse(userId.toString());
+                if (userIdInt == null) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text("Invalid user ID. Please sign in again."),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                  return;
+                }
+
+                try {
+                  final authService = AuthService();
+                  await authService.deleteAccount(userIdInt);
+
+                  // Clear local preferences
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text("Your account has been deleted successfully"),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+
+                    navigator.pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text("Failed to delete account: ${e.toString()}"),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
                 }
               }
             },

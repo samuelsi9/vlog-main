@@ -12,7 +12,6 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 // Design colors: red & white (match login)
 const Color _primaryRed = Color(0xFFE53E3E);
-const Color _primaryRedDark = Color(0xFFC62828);
 const Color _lightGrey = Color(0xFF9E9E9E);
 
 class RegisterPage extends StatefulWidget {
@@ -34,64 +33,23 @@ class _RegisterPageState extends State<RegisterPage>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String _completePhoneNumber = '';
-  late AnimationController _textKoliagoController;
-  late Animation<double> _textKoliagoScale;
   late AnimationController _pageController;
-  late Animation<double> _fadeKoliago;
-  late Animation<double> _slideTabs;
-  late Animation<double> _slideOr;
-  late Animation<double> _slideSocial;
-  late Animation<double> _slideForm;
+  late Animation<double> _fadeIn;
 
   @override
   void initState() {
     super.initState();
-    _textKoliagoController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _textKoliagoScale = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _textKoliagoController, curve: Curves.easeInOut),
-    );
     _pageController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 600),
     )..forward();
-    _fadeKoliago = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pageController,
-        curve: const Interval(0.0, 0.2, curve: Curves.easeOut),
-      ),
-    );
-    _slideTabs = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pageController,
-        curve: const Interval(0.1, 0.35, curve: Curves.elasticOut),
-      ),
-    );
-    _slideOr = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pageController,
-        curve: const Interval(0.25, 0.45, curve: Curves.easeOut),
-      ),
-    );
-    _slideSocial = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pageController,
-        curve: const Interval(0.35, 0.6, curve: Curves.easeOutBack),
-      ),
-    );
-    _slideForm = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _pageController,
-        curve: const Interval(0.45, 0.85, curve: Curves.easeOutCubic),
-      ),
+    _fadeIn = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _pageController, curve: Curves.easeOut),
     );
   }
 
   @override
   void dispose() {
-    _textKoliagoController.dispose();
     _pageController.dispose();
     firstNameController.dispose();
     lastNameController.dispose();
@@ -308,167 +266,92 @@ class _RegisterPageState extends State<RegisterPage>
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             children: [
-              // Gradient header: Vlog + Create Account
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 44),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_primaryRed, _primaryRedDark],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(32),
-                    bottomRight: Radius.circular(32),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _primaryRed.withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    FadeTransition(
-                      opacity: _fadeKoliago,
-                      child: const Text(
-                        'Vlog',
+              // Minimal header: Create Account
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 40, 24, 32),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Create Account',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.grey.shade900,
                           fontSize: 28,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Create Account',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Join us today and start enjoying fast delivery.',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Login / SignUp tabs (SignUp selected)
-              SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.5),
-                  end: Offset.zero,
-                ).animate(_slideTabs),
-                child: FadeTransition(
-                  opacity: _slideTabs,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _RegisterTabChip(
-                            label: 'Login',
-                        selected: false,
-                        onTap: () => Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LoginPage(),
-                          ),
-                            ),
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Join us and start enjoying fast delivery',
+                        style: TextStyle(
+                          color: _lightGrey,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _RegisterTabChip(
-                            label: 'SignUp',
-                            selected: true,
-                            onTap: () {},
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
               // Or continue with + Social buttons
               FadeTransition(
-                opacity: _slideOr,
+                opacity: _fadeIn,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Row(
                     children: [
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Text(
                           'Or continue with',
                           style: TextStyle(
                             color: _lightGrey,
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
                     ],
                   ),
                 ),
               ),
-              SlideTransition(
-                position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(_slideSocial),
-                child: FadeTransition(
-                  opacity: _slideSocial,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _RegisterSocialButton(
-                            imageAsset: 'assets/googleLogo.png',
-                            label: 'Google',
-                            color: const Color(0xFF4285F4),
-                            onTap: _signUpWithGoogle,
-                          ),
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _RegisterSocialButton(
+                          imageAsset: 'assets/googleLogo.png',
+                          label: 'Google',
+                          color: const Color(0xFF4285F4),
+                          onTap: _signUpWithGoogle,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _RegisterSocialButton(
-                            icon: Icons.apple,
-                            label: 'Apple',
-                            color: Colors.black,
-                            onTap: _signUpWithApple,
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _RegisterSocialButton(
+                          icon: Icons.apple,
+                          label: 'Apple',
+                          color: Colors.black,
+                          onTap: _signUpWithApple,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
               // Form section
-              SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.2),
-                  end: Offset.zero,
-                ).animate(_slideForm),
-                child: FadeTransition(
-                  opacity: _slideForm,
-                  child: Padding(
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     child: Form(
                       key: _formKey,
@@ -602,58 +485,13 @@ class _RegisterPageState extends State<RegisterPage>
                         ],
                       ),
                     ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RegisterTabChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _RegisterTabChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform(
-      transform: Matrix4.identity()
-        ..setEntry(3, 2, 0.002)
-        ..rotateX(selected ? 0 : -0.02),
-      alignment: Alignment.center,
-      child: Material(
-        color: selected ? _primaryRed : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        elevation: selected ? 4 : 6,
-        shadowColor: Colors.black.withOpacity(0.3),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : _primaryRed,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -676,14 +514,14 @@ class _RegisterSocialButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: Row(
