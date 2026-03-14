@@ -7,3 +7,5 @@
   "client": [],
   "configuration_version": "1"
 }
+
+print("com.google.gms.google-services")

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uni_links/uni_links.dart';
+import 'package:app_links/app_links.dart';
 import 'dart:async';
 import 'package:vlog/presentation/home.dart';
 import 'package:vlog/presentation/screen/checkout_confirmation_page.dart';
@@ -39,8 +39,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  StreamSubscription? _sub;
-  String? _initialLink;
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _sub;
+
   bool _initialized = false;
   AppRouteState? _routeState;
 
@@ -51,11 +52,13 @@ class _MyAppState extends State<MyApp> {
     _initDeepLinks();
   }
 
-  /// Resolves onboarding + auth state at startup. No artificial delay.
   Future<void> _resolveInitialRoute() async {
     if (_initialized) return;
+
     final state = await AppRouter.resolveInitialRoute();
+
     if (!mounted) return;
+
     setState(() {
       _routeState = state;
       _initialized = true;
@@ -64,41 +67,45 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _initDeepLinks() async {
     try {
-      _initialLink = await getInitialLink();
-      if (_initialLink != null) {
-        _handleLink(_initialLink!);
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        _handleLink(initialUri.toString());
       }
     } catch (_) {}
 
-    _sub = linkStream.listen((String? link) {
-      if (link != null) {
-        _handleLink(link);
-      }
-    }, onError: (err) {});
+    _sub = _appLinks.uriLinkStream.listen(
+      (Uri uri) {
+        _handleLink(uri.toString());
+      },
+      onError: (err) {},
+    );
   }
 
   void _handleLink(String link) {
     final uri = Uri.parse(link);
-    final host = uri.host;
-    final path = uri.path;
 
-    if (host == 'auth' && path == '/callback') {
+    if (uri.host == 'auth' && uri.path == '/callback') {
       final token = uri.queryParameters['token'];
+
       if (token != null && token.isNotEmpty && mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => MainScreen(token: null)),
+          MaterialPageRoute(
+            builder: (_) => MainScreen(token: token),
+          ),
           (route) => false,
         );
       }
       return;
     }
 
-    if (host == 'auth' && path == '/reset') {
+    if (uri.host == 'auth' && uri.path == '/reset') {
       final resetToken = uri.queryParameters['resettoken'];
+
       if (resetToken != null && resetToken.isNotEmpty && mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ResetPasswordPage(resetToken: resetToken),
+            builder: (_) =>
+                ResetPasswordPage(resetToken: resetToken),
           ),
         );
       }
@@ -123,11 +130,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Show minimal loader only while resolving route (typically < 100ms)
     if (!_initialized || _routeState == null) {
-      return MaterialApp(
+      return const MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const HomeSkeletonLoader(),
+        home: HomeSkeletonLoader(),
       );
     }
 
@@ -141,7 +147,8 @@ class _MyAppState extends State<MyApp> {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         routes: {
-          '/checkout': (context) => const CheckoutConfirmationPage(),
+          '/checkout': (context) =>
+              const CheckoutConfirmationPage(),
         },
         home: AppRouter.buildInitialScreen(
           state: _routeState!,
