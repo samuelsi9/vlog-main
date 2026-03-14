@@ -16,11 +16,21 @@ int parseInt(dynamic v, [int fallback = 0]) {
   return fallback;
 }
 
-/// Formats quantity with unit for display (e.g. "1kg", "5kg", "2x" for piece).
+/// Returns display string for unit (kg→kg, gram/grams→g, piece→piece).
+String getDisplayUnit(String? unitType) {
+  final u = (unitType ?? '').trim().toLowerCase();
+  if (u == 'kg') return 'kg';
+  if (u == 'gram' || u == 'grams') return 'g';
+  if (u.isEmpty || u == 'piece' || u == 'pcs' || u == 'pc') return 'piece';
+  return u;
+}
+
+/// Formats quantity with unit for display (e.g. "1kg", "5kg", "500g", "2x" for piece).
 String formatQtyWithUnit(int quantity, String? unitType) {
   final u = (unitType ?? '').trim().toLowerCase();
   if (u.isEmpty || u == 'piece' || u == 'pcs' || u == 'pc') {
     return '${quantity}x';
   }
-  return '$quantity$u';
+  final display = (u == 'gram' || u == 'grams') ? 'g' : u;
+  return '$quantity$display';
 }

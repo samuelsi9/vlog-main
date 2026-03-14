@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
 
@@ -228,7 +229,7 @@ class _WishlistPageState extends State<WishlistPage> {
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        "1${p.unitType}",
+                                        "1${getDisplayUnit(p.unitType)}",
                                         style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
                                       ),
                                     ),

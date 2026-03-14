@@ -6,6 +6,7 @@ import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/recently_viewed_service.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 
@@ -567,7 +568,7 @@ class _DetailState extends State<Detail> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          "1 ${_productDetail?.unitType ?? 'piece'}",
+                          "1 ${getDisplayUnit(_productDetail?.unitType)}",
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.orange.shade800,
@@ -716,9 +717,7 @@ class _DetailState extends State<Detail> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
-                        _productDetail?.unitType == 'kg'
-                            ? "$quantity${_productDetail!.unitType}"
-                            : "$quantity",
+                        formatQtyWithUnit(quantity, _productDetail?.unitType),
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
@@ -1106,7 +1105,7 @@ class _DetailState extends State<Detail> {
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                         child: Text(
-                                          "1${product.unitType}",
+                                          "1${getDisplayUnit(product.unitType)}",
                                           style: TextStyle(fontSize: 10, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
                                         ),
                                       ),

@@ -8,6 +8,7 @@ import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/category_items.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart';
@@ -1137,7 +1138,7 @@ class _RealhomeState extends State<Realhome> {
                                                                   borderRadius: BorderRadius.circular(6),
                                                                 ),
                                                                 child: Text(
-                                                                  "1${product.unitType}",
+                                                                  "1${getDisplayUnit(product.unitType)}",
                                                                   style: TextStyle(
                                                                     fontSize: 11,
                                                                     color: Colors.amber.shade900,

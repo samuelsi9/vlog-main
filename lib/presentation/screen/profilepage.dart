@@ -4,6 +4,7 @@ import 'package:vlog/Models/user_model.dart';
 import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/Utils/recently_viewed_service.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
@@ -712,7 +713,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      "1${product.unitType}",
+                                      "1${getDisplayUnit(product.unitType)}",
                                       style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
                                     ),
                                   ),

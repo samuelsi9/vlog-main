@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "626509355552",
+    "project_id": "auth-75027",
+    "storage_bucket": "auth-75027.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626509355552:android:32110d0b3fa1b9e81afa45",
+        "android_client_info": {
+          "package_name": "com.example.vlog"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDs_YoRl9XrsIEgaMIZU4bC_WwPZw2z4-w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "626509355552-bmk5mda099te3il0c00h3g8vklv5ru31.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.vlog"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -4,6 +4,7 @@ import 'package:vlog/Models/model.dart';
 import 'package:vlog/Models/product_model.dart';
 import 'package:vlog/Models/subcategory_models.dart';
 import 'package:vlog/Data/apiservices.dart';
+import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/wishlist_service.dart';
 import 'package:vlog/presentation/screen/detail_screen.dart'; // Pour aller aux détails
 
@@ -549,7 +550,7 @@ class _CategoryItemsState extends State<CategoryItems> {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        "1${product?.unitType ?? 'piece'}",
+                                        "1${getDisplayUnit(product?.unitType)}",
                                         style: TextStyle(fontSize: 10, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
                                       ),
                                     ),

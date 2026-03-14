@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
@@ -14,11 +15,19 @@ import 'package:vlog/presentation/skeleton_loader.dart';
 import 'package:vlog/Data/notification_service.dart';
 import 'package:vlog/core/app_lifecycle_handler.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:vlog/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    // App already exists (e.g. after hot restart), use existing instance
+  }
   await NotificationService().initNotification();
 
   final lifecycleHandler = AppLifecycleHandler();
