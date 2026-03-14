@@ -434,7 +434,7 @@ class _RealhomeState extends State<Realhome> {
                     height: 180,
                     width: 140,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       width: 140,
                       height: 180,
                       color: Colors.grey[300],

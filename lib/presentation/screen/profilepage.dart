@@ -552,11 +552,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: height ?? 120,
       width: double.infinity,
       child: isNetwork
-          ? Image.network(trimmed, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+          ? Image.network(trimmed, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(
               color: Colors.grey[200],
               child: Icon(Icons.broken_image, color: Colors.grey[400]),
             ))
-          : Image.asset(trimmed, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+          : Image.asset(trimmed, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(
               color: Colors.grey[200],
               child: Icon(Icons.broken_image, color: Colors.grey[400]),
             )),

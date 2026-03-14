@@ -1161,7 +1161,7 @@ class AuthService {
       ));
       final data = <String, dynamic>{
         'identity_token': identityToken,
-        if (authorizationCode != null) 'authorization_code': authorizationCode,
+        'authorization_code': ?authorizationCode,
         if (email != null && email.isNotEmpty) 'email': email,
         if (name != null && name.isNotEmpty) 'name': name,
       };

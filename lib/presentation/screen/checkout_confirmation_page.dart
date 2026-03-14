@@ -113,7 +113,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
             child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor)),
           );
         },
-        errorBuilder: (context, _, __) => Container(
+        errorBuilder: (context, _, _) => Container(
           width: width ?? 50,
           height: height ?? 50,
           color: Colors.grey[200],
@@ -126,7 +126,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
       width: width ?? 50,
       height: height ?? 50,
       fit: BoxFit.cover,
-      errorBuilder: (context, _, __) => Container(
+      errorBuilder: (context, _, _) => Container(
         width: width ?? 50,
         height: height ?? 50,
         color: Colors.grey[200],

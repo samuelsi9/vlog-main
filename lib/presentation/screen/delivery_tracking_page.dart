@@ -1349,7 +1349,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
                     child: Image.network(
                       order.items.first.image!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined, size: 32),
+                      errorBuilder: (_, _, _) => const Icon(Icons.shopping_bag_outlined, size: 32),
                     ),
                   )
                 : const Icon(Icons.shopping_bag_outlined, size: 32, color: Colors.grey),
