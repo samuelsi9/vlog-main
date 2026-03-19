@@ -2,6 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:vlog/Data/apiservices.dart';
 import 'package:vlog/Models/wishlist_model.dart';
 
+// ─────────────────────────────────────────────
+//  Internal error classifier
+//  Maps raw ApiException / network errors to friendly user strings.
+//  Original dev errors are documented in comments per branch.
+// ─────────────────────────────────────────────
+String _friendlyError(Object e) {
+  final raw = e.toString().toLowerCase();
+
+  // dev: ApiException(statusCode: null, errorCode: null, message: Network/connection error)
+  if (raw.contains('network') ||
+      raw.contains('connection') ||
+      raw.contains('socket') ||
+      raw.contains('timeout') ||
+      raw.contains('statuscode: null')) {
+    return "No internet connection.\nPlease check your network and try again.";
+  }
+
+  // dev: ApiException with statusCode 401 / unauthorized
+  if (raw.contains('401') || raw.contains('unauthorized')) {
+    return "Your session has expired. Please log in again.";
+  }
+
+  // dev: ApiException with statusCode 403 / forbidden
+  if (raw.contains('403') || raw.contains('forbidden')) {
+    return "You don't have permission to do that.";
+  }
+
+  // dev: ApiException with statusCode 404
+  if (raw.contains('404')) {
+    return "We couldn't find what you were looking for.";
+  }
+
+  // dev: ApiException with statusCode 500 or generic server error
+  if (raw.contains('500') || raw.contains('server')) {
+    return "Our servers are having a moment.\nPlease try again shortly.";
+  }
+
+  // dev: any other unknown exception – e.toString()
+  return "Something went wrong. Please try again.";
+}
+
+// ─────────────────────────────────────────────
+
 class WishlistService extends ChangeNotifier {
   static final WishlistService _instance = WishlistService._internal();
   factory WishlistService() => _instance;
@@ -15,7 +58,6 @@ class WishlistService extends ChangeNotifier {
 
   List<WishlistItemModel> get wishlist => List.unmodifiable(_items);
   bool get loading => _loading;
-  /// True while add/remove for this product is in progress.
   bool isToggling(int productId) => _togglingProductIds.contains(productId);
   String? get error => _error;
   bool get hasMore => _hasMore;
@@ -31,13 +73,13 @@ class WishlistService extends ChangeNotifier {
       _items = response.data;
       _hasMore = response.meta != null &&
           response.meta!.currentPage < response.meta!.lastPage;
-      _loading = false;
-      notifyListeners();
     } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
+      // dev error: e.toString() — raw exception, never shown directly to user
+      _error = _friendlyError(e);
+      // rethrow; // ← commented out: was causing unhandled exception overlay in Flutter debugger
+    } finally {
       _loading = false;
       notifyListeners();
-      rethrow;
     }
   }
 
@@ -49,7 +91,10 @@ class WishlistService extends ChangeNotifier {
       _items = response.data;
       notifyListeners();
     } catch (e) {
-      rethrow;
+      // dev error: e.toString() — addToWishlist(productId) failed
+      _error = _friendlyError(e);
+      notifyListeners();
+      // rethrow; // ← commented out: was causing unhandled exception overlay in Flutter debugger
     }
   }
 
@@ -61,7 +106,10 @@ class WishlistService extends ChangeNotifier {
       _items.removeWhere((e) => e.id == wishlistId);
       notifyListeners();
     } catch (e) {
-      rethrow;
+      // dev error: e.toString() — removeFromWishlist(wishlistId) failed
+      _error = _friendlyError(e);
+      notifyListeners();
+      // rethrow; // ← commented out: was causing unhandled exception overlay in Flutter debugger
     }
   }
 
@@ -70,7 +118,7 @@ class WishlistService extends ChangeNotifier {
     return _items.any((e) => e.product.id == productId);
   }
 
-  /// Check if a product is in the wishlist. Accepts product id (int) or object with .id (e.g. ProductModel).
+  /// Check if a product is in the wishlist. Accepts product id (int) or object with .id.
   bool isInWishlist(dynamic productOrId) {
     if (productOrId == null) return false;
     final id = _productIdFrom(productOrId);
@@ -81,7 +129,8 @@ class WishlistService extends ChangeNotifier {
   Future<void> toggleWishlist(dynamic productOrId) async {
     final id = _productIdFrom(productOrId);
     if (id == null || id <= 0) return;
-    if (_togglingProductIds.contains(id)) return; // Already toggling, ignore double-tap
+    if (_togglingProductIds.contains(id)) return; // ignore double-tap
+
     _togglingProductIds.add(id);
     notifyListeners();
     try {

@@ -7,21 +7,110 @@ import 'single_order_history_page.dart';
 /// Poll every 15 seconds so order list updates in real time.
 const Duration _orderHistoryPollInterval = Duration(seconds: 15);
 
-const Color _tabSelected = Color(0xFF4CAF50); // green when selected
+const Color _tabSelected = Color(0xFF4CAF50);
 const Color _primaryRed = Color(0xFFE53E3E);
-// Distinct colors per status (text and background)
-const Color _statusPendingBg = Color(0xFFFFF3E0);      // orange tint
+
+const Color _statusPendingBg = Color(0xFFFFF3E0);
 const Color _statusPendingText = Color(0xFFE65100);
-const Color _statusConfirmedBg = Color(0xFFE3F2FD);    // blue tint
+const Color _statusConfirmedBg = Color(0xFFE3F2FD);
 const Color _statusConfirmedText = Color(0xFF1565C0);
-const Color _statusPreparingBg = Color(0xFFFFF8E1);    // amber tint
+const Color _statusPreparingBg = Color(0xFFFFF8E1);
 const Color _statusPreparingText = Color(0xFFF57C00);
-const Color _statusShippedBg = Color(0xFFE8F5E9);      // light green
+const Color _statusShippedBg = Color(0xFFE8F5E9);
 const Color _statusShippedText = Color(0xFF2E7D32);
-const Color _statusDeliveredBg = Color(0xFFE8F5E9);   // green
+const Color _statusDeliveredBg = Color(0xFFE8F5E9);
 const Color _statusDeliveredText = Color(0xFF1B5E20);
-const Color _statusCanceledBg = Color(0xFFFFEBEE);     // red tint
+const Color _statusCanceledBg = Color(0xFFFFEBEE);
 const Color _statusCanceledText = Color(0xFFC62828);
+
+// ─────────────────────────────────────────────
+//  Beautiful snackbar helper
+// ─────────────────────────────────────────────
+enum _SnackType { success, warning, error, info }
+
+void _showSnack(
+  BuildContext context,
+  String message, {
+  _SnackType type = _SnackType.info,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  final config = {
+    _SnackType.success: (
+      icon: Icons.check_circle_rounded,
+      bg: const Color(0xFF1B5E20),
+      accent: const Color(0xFF4CAF50),
+    ),
+    _SnackType.warning: (
+      icon: Icons.info_rounded,
+      bg: const Color(0xFF4A3000),
+      accent: const Color(0xFFFFC107),
+    ),
+    _SnackType.error: (
+      icon: Icons.error_rounded,
+      bg: const Color(0xFF5C0A0A),
+      accent: const Color(0xFFEF5350),
+    ),
+    _SnackType.info: (
+      icon: Icons.info_outline_rounded,
+      bg: const Color(0xFF0D2340),
+      accent: const Color(0xFF42A5F5),
+    ),
+  }[type]!;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: duration,
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: config.bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: config.accent.withOpacity(0.4), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: config.accent.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(config.icon, color: config.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+}
+
+// ─────────────────────────────────────────────
 
 class OrdersHistoryPage extends StatefulWidget {
   const OrdersHistoryPage({super.key});
@@ -31,7 +120,7 @@ class OrdersHistoryPage extends StatefulWidget {
 }
 
 class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
-  String _selectedFilter = 'all'; // 'all', 'completed', 'in_progress', 'canceled'
+  String _selectedFilter = 'all';
   List<AllOrderHistoryModel> _orders = [];
   bool _loading = true;
   String? _error;
@@ -68,7 +157,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
       if (!mounted) return;
       setState(() => _orders = list);
     } catch (_) {
-      // Keep previous data on poll error
+      // Keep previous data on poll error – silently ignored
     }
   }
 
@@ -86,9 +175,10 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
         _loading = false;
       });
     } catch (e) {
+      // dev error: e.toString().replaceAll('Exception: ', '')
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = "We couldn't load your orders right now.\nPlease check your connection and try again.";
         _loading = false;
       });
     }
@@ -107,7 +197,6 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
     }
   }
 
-  /// Show the real status from the API (e.g. pending, confirmed, delivered).
   String _statusDisplay(AllOrderHistoryModel order) {
     final s = order.status.toLowerCase();
     switch (s) {
@@ -196,35 +285,12 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
         centerTitle: false,
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: _primaryRed),
-            )
+          ? const Center(child: CircularProgressIndicator(color: _primaryRed))
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey[700]),
-                        ),
-                        const SizedBox(height: 16),
-                        TextButton(
-                          onPressed: _loadOrders,
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
+              ? _buildErrorState()
               : Column(
                   children: [
-                    // Tab bar
+                    // ── Tab bar ──
                     Container(
                       margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       height: 44,
@@ -241,7 +307,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                         ],
                       ),
                     ),
-                    // Order list
+                    // ── Order list ──
                     Expanded(
                       child: _filteredOrders.isEmpty
                           ? _buildEmptyState()
@@ -260,6 +326,60 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  // ── Error full-screen state ──
+  Widget _buildErrorState() {
+    // dev error stored in _error (raw exception after replaceAll)
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.wifi_off_rounded, size: 38, color: Colors.red.shade300),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Couldn't load your orders",
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadOrders,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryRed,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -328,7 +448,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Status tag – different background and text color per status
+                // ── Status badge ──
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -345,9 +465,8 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Order ID
                 Text(
-                  'Order ${order.id}',
+                  'Order #${order.id}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -355,22 +474,15 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Delivery date & Create order (created_at) – only if API returned it
                 if (order.createdAt.isNotEmpty) ...[
                   Text(
                     'Delivery date: ${_formatCreatedAt(order.createdAt)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Create order: ${_formatCreatedAtTime(order.createdAt)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
+                    'Placed at: ${_formatCreatedAtTime(order.createdAt)}',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -386,7 +498,7 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
                       ),
                     ),
                     Text(
-                      'Price: ₺${order.grandTotal.toStringAsFixed(2)}',
+                      '₺${order.grandTotal.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -404,32 +516,55 @@ class _OrdersHistoryPageState extends State<OrdersHistoryPage> {
   }
 
   Widget _buildEmptyState() {
+    // Friendly label per active filter tab
+    final String subtitle;
+    switch (_selectedFilter) {
+      case 'completed':
+        subtitle = "You haven't completed any orders yet";
+        break;
+      case 'in_progress':
+        subtitle = "No orders are currently in progress";
+        break;
+      case 'canceled':
+        subtitle = "You don't have any canceled orders";
+        break;
+      default:
+        // dev: _selectedFilter == 'all' and list is empty
+        subtitle = "Your order history will show up here once you place your first order";
+    }
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.receipt_long, size: 80, color: Colors.grey[400]),
-          const SizedBox(height: 24),
-          const Text(
-            'No orders yet',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.receipt_long_rounded, size: 44, color: Colors.grey[400]),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _selectedFilter == 'all'
-                ? 'Your order history will appear here'
-                : 'No ${_selectedFilter.replaceAll('_', ' ')} orders',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
+            const SizedBox(height: 20),
+            const Text(
+              'No orders here',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.grey[500], fontSize: 14, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

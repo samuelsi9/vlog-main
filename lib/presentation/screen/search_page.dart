@@ -239,11 +239,11 @@ class _SearchPageState extends State<SearchPage> {
       }
     });
   }
-
+bool _showBackArrow = true;
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
-
+   final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -258,7 +258,17 @@ class _SearchPageState extends State<SearchPage> {
                 ),
                 onPressed: () => Navigator.pop(context),
               )
-            : null,
+            :  _showBackArrow ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: uberBlack,
+                  size: 20,
+                ),
+                onPressed: () {
+                FocusScope.of(context).unfocus(); 
+                _showBackArrow=false;
+                },
+              ) : null,
         title: Container(
           height: 48,
           decoration: BoxDecoration(

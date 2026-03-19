@@ -1155,7 +1155,7 @@ class _DeliveryTrackingPageState extends State<DeliveryTrackingPage> {
     ('Pending', 'Your order has been placed and is waiting for confirmation'),
     ('Confirmed', 'Your order got confirmed'),
     ('Preparing', 'We started preparing your order'),
-    ('Shipped', 'Our executive is delivering your order'),
+    ('On the way', 'Our executive is delivering your order'),
     ('Delivered', 'Enjoy your meal. Don\'t forget to rate us!'),
   ];
 

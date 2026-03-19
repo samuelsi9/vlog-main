@@ -172,7 +172,7 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _signInWithApple() async {
-    try {
+     try {
       await AuthService.signInWithApple();
       if (!mounted) return;
       final user = await StorageService.getUser();
@@ -191,12 +191,12 @@ class _LoginPageState extends State<LoginPage>
       if (e.code == AuthorizationErrorCode.canceled) return;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Apple sign-in failed: ${e.message}'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Apple registration failed: ${e.message}'), backgroundColor: Colors.red),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Apple sign-in failed: ${e.toString()}'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Apple registration failed: ${e.toString()}'), backgroundColor: Colors.red),
       );
     }
   }

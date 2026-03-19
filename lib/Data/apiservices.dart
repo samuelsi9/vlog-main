@@ -14,6 +14,7 @@ import 'package:vlog/Models/wishlist_model.dart';
 import 'package:vlog/Models/notification_model.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 
 class AuthService {
@@ -107,6 +108,7 @@ class AuthService {
           if (user != null) {
             await StorageService.saveUser(user);
           }
+            await savePlayerId(); 
         }
 
         print('Registration successful: $user');
@@ -147,6 +149,7 @@ class AuthService {
           if (user != null) {
             await StorageService.saveUser(user);
           }
+          await savePlayerId();
         }
 
         return data; // { access_token, token_type, user }
@@ -1126,6 +1129,7 @@ class AuthService {
         if (userData != null) {
           await StorageService.saveUser(userData);
         }
+        await AuthService().savePlayerId();
       }
     }
   } on GoogleSignInException catch (e) {
@@ -1150,6 +1154,9 @@ class AuthService {
     String? email,
     String? name,
   }) async {
+
+
+
     final baseUrl = AuthService().baseUrl;
     final url = '$baseUrl/api/applelogin';
     try {
@@ -1160,12 +1167,13 @@ class AuthService {
         receiveTimeout: const Duration(seconds: 10),
       ));
       final data = <String, dynamic>{
-        'identity_token': identityToken,
-        'authorization_code': ?authorizationCode,
-        if (email != null && email.isNotEmpty) 'email': email,
-        if (name != null && name.isNotEmpty) 'name': name,
+        'token': identityToken,
+        // 'authorization_code': ?authorizationCode,
+         if (name != null && name.isNotEmpty) 'name': name,
       };
       final response = await dio.post(url, data: data);
+
+     
       if (response.statusCode == 200 || response.statusCode == 201) {
         return response.data is Map<String, dynamic>
             ? response.data as Map<String, dynamic>
@@ -1175,7 +1183,16 @@ class AuthService {
           ? response.data as Map<String, dynamic>
           : {};
     } on DioException catch (e) {
+
+      if (e.response != null) {
+    print("❌ Apple API ERROR STATUS: ${e.response?.statusCode}");
+    print("❌ Apple API ERROR BODY: ${e.response?.data}");
+    print("Current simulator time: ${DateTime.now().toUtc()} UTC");
+  } else {
+    print("❌ Apple API ERROR (no response): ${e.message}");
+  }
       ApiErrorHandler.handle(e);
+      
     } catch (e) {
       print('Apple login API error: $e');
       rethrow;
@@ -1197,7 +1214,7 @@ class AuthService {
     print('userIdentifier: ${credential.userIdentifier}');
     print('email: ${credential.email}');
     print('givenName: ${credential.givenName}, familyName: ${credential.familyName}');
-    print('identityToken: ${credential.identityToken?.isNotEmpty == true ? "(present)" : "(null/empty)"}');
+    print('identityToken: ${credential.identityToken}');
     print('authorizationCode: ${"(present)"}');
 
     final String? identityToken = credential.identityToken;
@@ -1212,9 +1229,9 @@ class AuthService {
     final nameOrNull = name.isEmpty ? null : name;
 
     final apiResponse = await appleLogin(
-      identityToken: identityToken,
+      identityToken:identityToken,
       authorizationCode: credential.authorizationCode,
-      email: credential.email,
+      email: credential.email ?? '',
       name: nameOrNull,
     );
 
@@ -1232,9 +1249,87 @@ class AuthService {
           await StorageService.saveUser(userData);
         }
         print('Token and user saved to StorageService');
+        await AuthService().savePlayerId();
       }
     }
   }
+
+
+
+Future<void> savePlayerId() async {
+  try {
+    String? playerId = OneSignal.User.pushSubscription.id;
+
+    // ✅ If null, wait a bit and retry (OneSignal needs time to register)
+    if (playerId == null || playerId.isEmpty) {
+      print('⚠️ Player ID not ready, waiting 3 seconds...');
+      await Future.delayed(const Duration(seconds: 3));
+      playerId = OneSignal.User.pushSubscription.id;
+    }
+
+    print("OneSignal Player ID: $playerId");
+
+    if (playerId == null || playerId.isEmpty) {
+      print('⚠️ No player ID available after wait');
+      return;
+    }
+
+    final token = await StorageService.getToken();
+    if (token == null || token.isEmpty) {
+      print('⚠️ No auth token found');
+      return;
+    }
+
+    final response = await _dio.post(
+      '/api/save-fcm-token',
+      data: {'player_id': playerId},
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      print('✅ Player ID successfully sent to backend: $playerId');
+    } else {
+      print('⚠️ Failed to send Player ID: ${response.statusCode}');
+    }
+
+  } catch (e) {
+    print('❌ Error saving Player ID: $e');
+  }
+}
+//   Future<void> getPlayerId() async {
+//   try {
+//     // Make sure OneSignal is initialized before this is called
+//     final status = await OneSignal.shared.getDeviceState();
+//     final String? playerId = status?.userId;
+
+//     print("OneSignal Player ID: $playerId");
+
+//     if (playerId != null && playerId.isNotEmpty) {
+//       final token = await StorageService.getToken();
+//       if (token == null || token.isEmpty) return;
+
+//       final url = '${baseUrl}/api/save-fcm-token';
+//       final dio = Dio();
+//       final response = await dio.post(
+//         url,
+//         options: Options(
+//           headers: {
+//             'Authorization': 'Bearer $token',
+//             'Accept': 'application/json',
+//           },
+//         ),
+//         data: {'player_id': playerId},
+//       );
+
+//       if (response.statusCode == 200 || response.statusCode == 201) {
+//         print('✅ Player ID successfully sent to backend.');
+//       } else {
+//         print('⚠️ Failed to send Player ID: ${response.statusCode}');
+//       }
+//     }
+//   } catch (e) {
+//     print('❌ Error fetching/sending Player ID: $e');
+//   }
+// }
 
   /// Clear entire cart
   /// Returns empty CartModel

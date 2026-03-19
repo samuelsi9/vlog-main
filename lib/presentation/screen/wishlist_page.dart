@@ -6,6 +6,136 @@ import 'package:vlog/presentation/screen/detail_screen.dart';
 
 const Color _primaryRed = Color(0xFFE53E3E);
 
+// ─────────────────────────────────────────────
+//  Beautiful snackbar helper
+// ─────────────────────────────────────────────
+enum _SnackType { success, warning, error, info }
+
+void _showSnack(
+  BuildContext context,
+  String message, {
+  _SnackType type = _SnackType.info,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  final config = {
+    _SnackType.success: (
+      icon: Icons.check_circle_rounded,
+      bg: const Color(0xFF1B5E20),     // ✅ fixed: was wrong navy blue
+      accent: const Color(0xFF4CAF50), // ✅ fixed: was near-white
+    ),
+    _SnackType.warning: (
+      icon: Icons.info_rounded,
+      bg: const Color(0xFF4A3000),
+      accent: const Color(0xFFFFC107),
+    ),
+    _SnackType.error: (
+      icon: Icons.error_rounded,
+      bg: const Color(0xFF5C0A0A),
+      accent: const Color(0xFFEF5350),
+    ),
+    _SnackType.info: (
+      icon: Icons.info_outline_rounded,
+      bg: const Color(0xFF0D2340),
+      accent: const Color(0xFF42A5F5),
+    ),
+  }[type]!;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: duration,
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: config.bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: config.accent.withOpacity(0.4), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: config.accent.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(config.icon, color: config.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+}
+
+// ─────────────────────────────────────────────
+//  Network / API error classifier
+//  Maps raw ApiException strings to friendly user messages.
+//  Original dev errors are documented in comments per branch.
+// ─────────────────────────────────────────────
+String _friendlyError(Object e) {
+  final raw = e.toString().toLowerCase();
+
+  // dev: ApiException(statusCode: null, errorCode: null, message: Network/connection error)
+  if (raw.contains('network') ||
+      raw.contains('connection') ||
+      raw.contains('socket') ||
+      raw.contains('timeout') ||
+      raw.contains('statuscode: null')) {
+    return "No internet connection.\nPlease check your network and try again.";
+  }
+
+  // dev: ApiException with statusCode 401 / unauthorized
+  if (raw.contains('401') || raw.contains('unauthorized')) {
+    return "Your session has expired. Please log in again.";
+  }
+
+  // dev: ApiException with statusCode 403 / forbidden
+  if (raw.contains('403') || raw.contains('forbidden')) {
+    return "You don't have permission to do that.";
+  }
+
+  // dev: ApiException with statusCode 404
+  if (raw.contains('404')) {
+    return "We couldn't find what you were looking for.";
+  }
+
+  // dev: ApiException with statusCode 500 or generic server error
+  if (raw.contains('500') || raw.contains('server')) {
+    return "Our servers are having a moment.\nPlease try again shortly.";
+  }
+
+  // dev: any other unknown exception – e.toString()
+  return "Something went wrong. Please try again.";
+}
+
+// ─────────────────────────────────────────────
+
 class WishlistPage extends StatefulWidget {
   const WishlistPage({super.key});
 
@@ -38,7 +168,7 @@ class _WishlistPageState extends State<WishlistPage> {
         height: height,
         width: width,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
+        errorBuilder: (_, __, ___) => Container(
           height: height,
           width: width,
           color: Colors.grey[200],
@@ -51,7 +181,7 @@ class _WishlistPageState extends State<WishlistPage> {
       height: height,
       width: width,
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Container(
+      errorBuilder: (_, __, ___) => Container(
         height: height,
         width: width,
         color: Colors.grey[200],
@@ -85,7 +215,13 @@ class _WishlistPageState extends State<WishlistPage> {
               if (!ws.loading) return const SizedBox.shrink();
               return const Padding(
                 padding: EdgeInsets.only(right: 16),
-                child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _primaryRed),
+                  ),
+                ),
               );
             },
           ),
@@ -93,66 +229,130 @@ class _WishlistPageState extends State<WishlistPage> {
       ),
       body: Consumer<WishlistService>(
         builder: (context, wishlistService, child) {
+
+          // ── Loading state ──
           if (wishlistService.loading && wishlistService.wishlist.isEmpty) {
-            return Center(child: CircularProgressIndicator(color: _primaryRed));
+            return const Center(child: CircularProgressIndicator(color: _primaryRed));
           }
+
+          // ── Error state ──
+          // dev: wishlistService.error holds the raw exception string from WishlistService.
+          // Triggered by: ApiException(statusCode: null, errorCode: null, message: Network/connection error)
+          // _friendlyError() maps that to a user-readable message based on the error content.
           if (wishlistService.error != null && wishlistService.wishlist.isEmpty) {
+            final raw = wishlistService.error!.toLowerCase();
+            final isNetworkError = raw.contains('network') ||
+                raw.contains('connection') ||
+                raw.contains('socket') ||
+                raw.contains('statuscode: null');
+
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(32),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      wishlistService.error!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      // wifi_off for network errors, error_outline for server/other errors
+                      child: Icon(
+                        isNetworkError
+                            ? Icons.wifi_off_rounded
+                            : Icons.error_outline_rounded,
+                        size: 38,
+                        color: Colors.red.shade300,
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    TextButton(
+                    const SizedBox(height: 20),
+                    Text(
+                      isNetworkError
+                          ? "No internet connection"
+                          : "Couldn't load your wishlist",
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      // dev: wishlistService.error → mapped via _friendlyError()
+                      _friendlyError(wishlistService.error!),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
                       onPressed: () {
                         wishlistService.clearError();
                         wishlistService.fetchWishlist();
                       },
-                      child: const Text('Retry'),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Try again'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryRed,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                      ),
                     ),
                   ],
                 ),
               ),
             );
           }
+
           final wishlist = wishlistService.wishlist;
 
+          // ── Empty state ──
           if (wishlist.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.favorite_border,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    "Your wishlist is empty",
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.favorite_border_rounded,
+                      size: 48,
+                      color: Colors.red.shade200,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Nothing saved yet",
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Text(
-                    "Add items to your wishlist to see them here",
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                    "Tap the heart on any item to save it here",
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
             );
           }
 
+          // ── List ──
           return RefreshIndicator(
+            color: _primaryRed,
             onRefresh: () => wishlistService.fetchWishlist(),
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -167,6 +367,7 @@ class _WishlistPageState extends State<WishlistPage> {
                   ),
                   elevation: 2,
                   child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -200,7 +401,7 @@ class _WishlistPageState extends State<WishlistPage> {
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                                    const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                                     const SizedBox(width: 4),
                                     Text(
                                       p.rating.toString(),
@@ -230,7 +431,11 @@ class _WishlistPageState extends State<WishlistPage> {
                                       ),
                                       child: Text(
                                         "1${getDisplayUnit(p.unitType)}",
-                                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.amber.shade900,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -238,23 +443,29 @@ class _WishlistPageState extends State<WishlistPage> {
                               ],
                             ),
                           ),
+                          // ── Remove from wishlist ──
                           IconButton(
-                            icon: const Icon(Icons.favorite, color: Colors.red),
+                            icon: const Icon(Icons.favorite_rounded, color: _primaryRed),
+                            tooltip: 'Remove from wishlist',
                             onPressed: () async {
                               try {
                                 await wishlistService.removeFromWishlist(item.id);
+                                // dev: removed item.id from wishlist successfully
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("${p.name} removed from wishlist"),
-                                      duration: const Duration(seconds: 1),
-                                    ),
+                                  _showSnack(
+                                    context,
+                                    '"${p.name}" was removed from your wishlist.',
+                                    type: _SnackType.success,
+                                    duration: const Duration(seconds: 2),
                                   );
                                 }
                               } catch (e) {
+                                // dev error: e.toString() – removeFromWishlist(item.id) failed
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to remove: $e'), backgroundColor: Colors.red),
+                                  _showSnack(
+                                    context,
+                                    _friendlyError(e),
+                                    type: _SnackType.error,
                                   );
                                 }
                               }

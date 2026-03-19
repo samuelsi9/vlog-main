@@ -7,6 +7,7 @@ import 'package:vlog/presentation/screen/search_page.dart';
 import 'package:vlog/presentation/screen/support_qa_page.dart';
 import 'package:vlog/Utils/delivery_tracking_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/presentation/restaurants/market.dart';
 
 class MainScreen extends StatefulWidget {
   final String? token;
@@ -67,6 +68,31 @@ class _MainScreenState extends State<MainScreen> {
     print(widget.token);
     return Scaffold(
       backgroundColor: Colors.white,
+      floatingActionButton: selectedIndex == 0 ? Padding(
+  padding: const EdgeInsets.only(bottom: 10),
+  child: SizedBox(
+    width: 70,
+    height: 70,
+    child: FloatingActionButton(
+    heroTag: "market_fab", // ✅ add this
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const MarketScreen(),
+          ),
+        );
+      },
+      backgroundColor: const Color.fromARGB(255, 197, 28, 28),
+      shape: const CircleBorder(),
+      child: const Icon(
+        Icons.storefront,
+        color: Colors.white,
+        size: 32,
+      ),
+    ),
+  ),
+) : null,
       bottomNavigationBar: BottomNavigationBar(
         unselectedItemColor: Colors.black38,
         selectedItemColor: Colors.black,
@@ -81,6 +107,7 @@ class _MainScreenState extends State<MainScreen> {
         items: [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
+          
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite_border),
             label: "Wishlist",

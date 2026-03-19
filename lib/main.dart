@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app_links/app_links.dart';
@@ -16,19 +15,47 @@ import 'package:vlog/Data/notification_service.dart';
 import 'package:vlog/core/app_lifecycle_handler.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:vlog/firebase_options.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
+
+final GlobalKey<ScaffoldMessengerState> snackbarKey = GlobalKey<ScaffoldMessengerState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+   await NotificationService().initNotification();
+
+ 
+   // Enable verbose logging for debugging (remove in production)
+  OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+  // Initialize with your OneSignal App ID
+  OneSignal.initialize("9bda19f1-38fd-403e-8491-18edf4409b5c");
+  // Use this method to prompt for push notifications.
+  // We recommend removing this method after testing and instead use In-App Messages to prompt for notification permission.
+  OneSignal.Notifications.requestPermission(false);
+
+  // ✅ Listen for when the subscription ID becomes available
+OneSignal.User.pushSubscription.addObserver((state) {
+  String? playerId = state.current.id;
+  
+  if (playerId != null && playerId.isNotEmpty) {
+    print("Player ID ready: $playerId");
+     // your API call here
+  }
+});
+  
+  
+
+  // Initialize Firebase
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
   } on FirebaseException catch (e) {
     if (e.code != 'duplicate-app') rethrow;
-    // App already exists (e.g. after hot restart), use existing instance
   }
-  await NotificationService().initNotification();
+
+  // Your custom notification service
+ 
 
   final lifecycleHandler = AppLifecycleHandler();
   WidgetsBinding.instance.addObserver(lifecycleHandler);
@@ -38,6 +65,7 @@ void main() async {
   });
 
   runApp(const MyApp());
+ 
 }
 
 class MyApp extends StatefulWidget {
@@ -143,6 +171,7 @@ class _MyAppState extends State<MyApp> {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: HomeSkeletonLoader(),
+        
       );
     }
 
@@ -154,6 +183,7 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => OrderService()),
       ],
       child: MaterialApp(
+        scaffoldMessengerKey: snackbarKey, 
         debugShowCheckedModeBanner: false,
         routes: {
           '/checkout': (context) =>

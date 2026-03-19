@@ -10,6 +10,95 @@ const Color _yellowLight = Color(0xFFFFF8E1);
 const Color _yellowAccent = Color(0xFFFFC107);
 const Color _black = Color(0xFF000000);
 
+// ─────────────────────────────────────────────
+//  Beautiful snackbar helper
+// ─────────────────────────────────────────────
+enum _SnackType { success, warning, error, info }
+
+void _showSnack(
+  BuildContext context,
+  String message, {
+  _SnackType type = _SnackType.info,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  final config = {
+    _SnackType.success: (
+      icon: Icons.check_circle_rounded,
+      bg: const Color(0xFF1B5E20),
+      accent: const Color(0xFF4CAF50),
+    ),
+    _SnackType.warning: (
+      icon: Icons.info_rounded,
+      bg: const Color(0xFF4A3000),
+      accent: const Color(0xFFFFC107),
+    ),
+    _SnackType.error: (
+      icon: Icons.error_rounded,
+      bg: const Color(0xFF5C0A0A),
+      accent: const Color(0xFFEF5350),
+    ),
+    _SnackType.info: (
+      icon: Icons.info_outline_rounded,
+      bg: const Color(0xFF0D2340),
+      accent: const Color(0xFF42A5F5),
+    ),
+  }[type]!;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: duration,
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: config.bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: config.accent.withOpacity(0.4), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: config.accent.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(config.icon, color: config.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+}
+
+// ─────────────────────────────────────────────
+
 class ChoiceAddress extends StatefulWidget {
   /// When true, show "Continue to checkout" and navigate to checkout after selecting address.
   final bool fromCheckout;
@@ -22,7 +111,7 @@ class ChoiceAddress extends StatefulWidget {
 
 class _ChoiceAddressState extends State<ChoiceAddress> {
   List<DeliveryAddressModel> _addresses = [];
-  String? _selectedId; // id of address selected for delivery
+  String? _selectedId;
   bool _loading = true;
   String? _error;
 
@@ -53,9 +142,10 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
         _loading = false;
       });
     } catch (e) {
+      // dev error: e.toString()
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = "We couldn't load your addresses right now.\nPlease check your connection and try again.";
         _loading = false;
       });
     }
@@ -78,11 +168,11 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
 
   void _continueToCheckout() {
     if (_selectedId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an address for delivery'),
-          backgroundColor: Colors.orange,
-        ),
+      // dev: no address selected – _selectedId is null
+      _showSnack(
+        context,
+        'Please choose a delivery address before continuing.',
+        type: _SnackType.warning,
       );
       return;
     }
@@ -102,7 +192,6 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
     return Icons.location_on;
   }
 
-  /// Map thumbnail - circular placeholder with location pin
   Widget _mapThumbnail(double lat, double lng) {
     return Container(
       width: 56,
@@ -151,100 +240,100 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
           child: Card(
             margin: const EdgeInsets.only(bottom: 16, top: 8),
             shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDefault ? _redPrimary : Colors.grey[200]!,
-              width: isDefault ? 2 : 1,
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: isDefault ? _redPrimary : Colors.grey[200]!,
+                width: isDefault ? 2 : 1,
+              ),
             ),
-          ),
-          elevation: 2,
-          shadowColor: Colors.black.withOpacity(0.06),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE0B2),
-                          shape: BoxShape.circle,
-                        ),
-                            child: Icon(_iconForLabel(a.label), color: _redPrimary, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  a.label,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 17,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                if (a.buildingNumber.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    a.buildingNumber,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[800],
-                                      height: 1.3,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                                if (a.phone != null && a.phone!.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    a.phone!,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ],
-                              ],
+            elevation: 2,
+            shadowColor: Colors.black.withOpacity(0.06),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFFE0B2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(_iconForLabel(a.label), color: _redPrimary, size: 22),
                             ),
-                          ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    a.label,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 17,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (a.buildingNumber.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      a.buildingNumber,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[800],
+                                        height: 1.3,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                  if (a.phone != null && a.phone!.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      a.phone!,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _mapThumbnail(a.latitude, a.longitude),
+                      PopupMenuButton<String>(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            // TODO: edit address
+                          } else if (value == 'delete') {
+                            _onDeleteAddress(a);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          const PopupMenuItem(value: 'delete', child: Text('Delete')),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    _mapThumbnail(a.latitude, a.longitude),
-                    PopupMenuButton<String>(
-                      padding: EdgeInsets.zero,
-                      icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          // TODO: edit address
-                        } else if (value == 'delete') {
-                          _onDeleteAddress(a);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         ),
         if (isDefault)
           Positioned(
@@ -281,7 +370,6 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
     );
   }
 
-  /// Optimistic update: tap anywhere on card to set as default. No refetch, no reorder.
   Future<void> _onUseAddress(DeliveryAddressModel a) async {
     if (a.isDefault) return;
     final previousDefaultId = _selectedId;
@@ -295,14 +383,14 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
       final auth = AuthService();
       await auth.useAddress(a.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Address set for delivery'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
+      _showSnack(
+        context,
+        '${a.label} is now your delivery address.',
+        type: _SnackType.success,
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
+      // dev error: e.toString()
       if (!mounted) return;
       setState(() {
         _addresses = _addresses
@@ -310,46 +398,74 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
             .toList();
         _selectedId = previousDefaultId;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
+      _showSnack(
+        context,
+        "We couldn't update your delivery address. Please try again.",
+        type: _SnackType.error,
       );
     }
   }
 
   Future<void> _onDeleteAddress(DeliveryAddressModel a) async {
+    // Confirm before deleting
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Remove address?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to remove "${a.label}"? This action cannot be undone.',
+          style: TextStyle(color: Colors.grey[700], height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[700])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _redPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     try {
       final auth = AuthService();
       final response = await auth.deleteAddress(a.id);
       if (!mounted) return;
       final message = response['message']?.toString() ?? '';
-      // Always refresh the list after delete
       await _loadAddresses();
       if (!mounted) return;
       if (message == 'Address deleted successfully') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Address deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
+        // dev: server returned 'Address deleted successfully'
+        _showSnack(
+          context,
+          '"${a.label}" has been removed from your addresses.',
+          type: _SnackType.success,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message.isNotEmpty ? message : 'Address could not be deleted'),
-            backgroundColor: Colors.orange,
-          ),
+        // dev: unexpected server message → $message
+        _showSnack(
+          context,
+          "We couldn't remove this address right now. Please try again later.",
+          type: _SnackType.warning,
         );
       }
     } catch (e) {
+      // dev error: e.toString()
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
+      _showSnack(
+        context,
+        "Something went wrong while removing the address. Please try again.",
+        type: _SnackType.error,
       );
     }
   }
@@ -388,7 +504,6 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
       ),
       body: Column(
         children: [
-          // Add New Address button
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Material(
@@ -424,7 +539,6 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
               ),
             ),
           ),
-          // List
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(color: _redPrimary))
@@ -435,17 +549,44 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.error_outline, size: 48, color: Colors.grey[600]),
-                              const SizedBox(height: 12),
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.wifi_off_rounded, size: 36, color: Colors.red.shade300),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                "Couldn't load addresses",
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
                               Text(
                                 _error!,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey[700]),
+                                style: TextStyle(color: Colors.grey[600], height: 1.5),
                               ),
-                              const SizedBox(height: 16),
-                              TextButton(
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
                                 onPressed: _loadAddresses,
-                                child: const Text('Retry'),
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Try again'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _redPrimary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
                               ),
                             ],
                           ),
@@ -456,20 +597,28 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.location_off_outlined, size: 64, color: Colors.grey[400]),
+                                Container(
+                                  width: 88,
+                                  height: 88,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.location_off_outlined, size: 44, color: Colors.grey[400]),
+                                ),
                                 const SizedBox(height: 16),
-                                Text(
-                                  'No addresses yet',
+                                const Text(
+                                  'No saved addresses',
                                   style: TextStyle(
                                     fontSize: 18,
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Tap "Add New Address" to add one',
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                                  'Add a delivery address to get started',
+                                  style: TextStyle(color: Colors.grey[500], fontSize: 14),
                                 ),
                               ],
                             ),
@@ -479,12 +628,10 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
                             itemCount: _addresses.length,
                             itemBuilder: (context, index) {
                               final a = _addresses[index];
-                              final isDefault = a.isDefault;
-                              return _buildAddressCard(a, isDefault);
+                              return _buildAddressCard(a, a.isDefault);
                             },
                           ),
           ),
-          // Continue to checkout (only when fromCheckout)
           if (widget.fromCheckout && _addresses.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(20),
@@ -524,7 +671,9 @@ class _ChoiceAddressState extends State<ChoiceAddress> {
   }
 }
 
-/// Address details form as bottom sheet (receiver name, complete address, landmark, address type).
+// ─────────────────────────────────────────────
+//  Add address bottom sheet
+// ─────────────────────────────────────────────
 class _AddressDetailsSheet extends StatefulWidget {
   const _AddressDetailsSheet();
 
@@ -555,36 +704,43 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location services are disabled. Please enable them.'),
-            backgroundColor: Colors.orange,
-          ),
+        // dev: Geolocator.isLocationServiceEnabled() returned false
+        _showSnack(
+          context,
+          'Your location is turned off. Please enable it in your device settings.',
+          type: _SnackType.warning,
+          duration: const Duration(seconds: 4),
         );
         return;
       }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
+
       if (permission == LocationPermission.deniedForever && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location permission permanently denied. You can set it in device settings.'),
-            backgroundColor: Colors.orange,
-          ),
+        // dev: LocationPermission.deniedForever – must open app settings
+        _showSnack(
+          context,
+          "Location access was permanently denied. You can allow it from your phone's Settings → App Permissions.",
+          type: _SnackType.warning,
+          duration: const Duration(seconds: 5),
         );
         return;
       }
+
       if (permission == LocationPermission.denied && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location permission is required to use your current location.'),
-            backgroundColor: Colors.orange,
-          ),
+        // dev: LocationPermission.denied after request
+        _showSnack(
+          context,
+          'We need location permission to pin your delivery spot. Please allow it and try again.',
+          type: _SnackType.warning,
+          duration: const Duration(seconds: 4),
         );
         return;
       }
+
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
       );
@@ -594,20 +750,19 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
         _longitudeController.text = position.longitude.toString();
         _hasCurrentLocation = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Location set from your current position'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
+      _showSnack(
+        context,
+        'Location pinned! Your current position has been saved.',
+        type: _SnackType.success,
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
+      // dev error: e.toString()
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not get location: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+        _showSnack(
+          context,
+          "We couldn't detect your location. Make sure GPS is on and try again.",
+          type: _SnackType.error,
         );
       }
     } finally {
@@ -651,23 +806,21 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in Building number'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
+      // dev: form validation failed – buildingNumber is empty
+      _showSnack(
+        context,
+        'Please enter your building number to continue.',
+        type: _SnackType.warning,
       );
       return;
     }
     if (!_hasCurrentLocation) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please tap "Use my current location" to set your delivery position'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 4),
-        ),
+      // dev: _hasCurrentLocation is false – lat/lng not set yet
+      _showSnack(
+        context,
+        'Tap "Use my current location" so we know where to deliver.',
+        type: _SnackType.warning,
+        duration: const Duration(seconds: 4),
       );
       return;
     }
@@ -690,7 +843,6 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
         addressType: _addressType,
       );
       if (!mounted) return;
-      // Fetch all addresses from API - the new one will have the real ID
       final list = await auth.allMyAddresses();
       if (!mounted) return;
       if (list.isNotEmpty) {
@@ -699,12 +851,12 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
         Navigator.of(context).pop();
       }
     } catch (e) {
+      // dev error: e.toString()
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
+      _showSnack(
+        context,
+        "We couldn't save your address right now. Please check your connection and try again.",
+        type: _SnackType.error,
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -727,7 +879,6 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
             key: _formKey,
             child: Column(
               children: [
-                // Handle bar
                 Container(
                   margin: const EdgeInsets.only(top: 12),
                   width: 40,
@@ -737,7 +888,6 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                // Header
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                   child: Row(
@@ -757,10 +907,7 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                             const SizedBox(height: 4),
                             Text(
                               'Complete address would assist us in serving you better',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
+                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                             ),
                           ],
                         ),
@@ -819,10 +966,23 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                                 height: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Icon(Icons.my_location, size: 20, color: _hasCurrentLocation ? Colors.green : _redPrimary),
+                            : Icon(
+                                _hasCurrentLocation
+                                    ? Icons.check_circle_rounded
+                                    : Icons.my_location,
+                                size: 20,
+                                color: _hasCurrentLocation ? Colors.green : _redPrimary,
+                              ),
                         label: Text(
-                          _gettingLocation ? 'Getting location...' : 'Use my current location',
-                          style: TextStyle(color: _hasCurrentLocation ? Colors.green : _redPrimary, fontWeight: _hasCurrentLocation ? FontWeight.w600 : null),
+                          _gettingLocation
+                              ? 'Detecting your location...'
+                              : _hasCurrentLocation
+                                  ? 'Location saved'
+                                  : 'Use my current location',
+                          style: TextStyle(
+                            color: _hasCurrentLocation ? Colors.green : _redPrimary,
+                            fontWeight: _hasCurrentLocation ? FontWeight.w600 : null,
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _hasCurrentLocation ? Colors.green : _redPrimary,
