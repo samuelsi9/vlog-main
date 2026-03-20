@@ -809,7 +809,7 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
       // dev: form validation failed – buildingNumber is empty
       _showSnack(
         context,
-        'Please enter your building number to continue.',
+        'Please enter your building name to continue.',
         type: _SnackType.warning,
       );
       return;
@@ -954,8 +954,8 @@ class _AddressDetailsSheetState extends State<_AddressDetailsSheet> {
                       const SizedBox(height: 24),
                       TextFormField(
                         controller: _buildingController,
-                        decoration: _addressFieldDecoration('Building number *', 'Building number'),
-                        validator: (v) => _validateRequired(v, 'Building number'),
+                        decoration: _addressFieldDecoration('Building name*', 'Building name'),
+                        validator: (v) => _validateRequired(v, 'Building name'),
                       ),
                       const SizedBox(height: 20),
                       OutlinedButton.icon(

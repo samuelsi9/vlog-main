@@ -58,16 +58,9 @@ class NotificationService {
 });
 
 
-String? token = await FirebaseMessaging.instance.getToken();
-if (token != null) {
-  print('✅ FCM Token: $token');
-} else {
-  print('⚠️ FCM Token not available yet.');
-}
+
     // Handle background messages
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('User tapped notification: ${message.notification?.title}');
-    });
+    
 
     _isInitialized = true;
   }
