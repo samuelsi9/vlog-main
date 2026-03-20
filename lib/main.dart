@@ -17,8 +17,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:vlog/firebase_options.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
-
-final GlobalKey<ScaffoldMessengerState> snackbarKey = GlobalKey<ScaffoldMessengerState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -171,7 +169,6 @@ class _MyAppState extends State<MyApp> {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: HomeSkeletonLoader(),
-        
       );
     }
 
@@ -183,7 +180,6 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => OrderService()),
       ],
       child: MaterialApp(
-        scaffoldMessengerKey: snackbarKey, 
         debugShowCheckedModeBanner: false,
         routes: {
           '/checkout': (context) =>

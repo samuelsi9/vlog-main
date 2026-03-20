@@ -369,6 +369,44 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Total Section at the top
+                        InkWell(
+                              onTap: () => setState(() => _selectedPaymentMethod = 'cod'),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: _selectedPaymentMethod == 'cod'
+                                        ? primaryColor
+                                        : Colors.grey[300]!,
+                                    width: _selectedPaymentMethod == 'cod' ? 2 : 1,
+                                  ),
+                                ),
+                                child: RadioListTile<String>(
+                                  value: 'cod',
+                                  groupValue: _selectedPaymentMethod,
+                                  onChanged: (value) {
+                                    setState(() => _selectedPaymentMethod = value!);
+                                  },
+                                  activeColor: primaryColor,
+                                  secondary: Icon(
+                                    Icons.money,
+                                    color: _selectedPaymentMethod == 'cod' ? primaryColor : Colors.grey[600],
+                                    size: 28,
+                                  ),
+                                  title: const Text(
+                                    'Cash on Delivery',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: const Text(
+                                    'Pay in cash when your order is delivered',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                ),
+                              ),
+                            ),
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -850,44 +888,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            InkWell(
-                              onTap: () => setState(() => _selectedPaymentMethod = 'cod'),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _selectedPaymentMethod == 'cod'
-                                        ? primaryColor
-                                        : Colors.grey[300]!,
-                                    width: _selectedPaymentMethod == 'cod' ? 2 : 1,
-                                  ),
-                                ),
-                                child: RadioListTile<String>(
-                                  value: 'cod',
-                                  groupValue: _selectedPaymentMethod,
-                                  onChanged: (value) {
-                                    setState(() => _selectedPaymentMethod = value!);
-                                  },
-                                  activeColor: primaryColor,
-                                  secondary: Icon(
-                                    Icons.money,
-                                    color: _selectedPaymentMethod == 'cod' ? primaryColor : Colors.grey[600],
-                                    size: 28,
-                                  ),
-                                  title: const Text(
-                                    'Cash on Delivery',
-                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  subtitle: const Text(
-                                    'Pay in cash when your order is delivered',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                                ),
-                              ),
-                            ),
+                          
                           ],
                         ),
                       ),

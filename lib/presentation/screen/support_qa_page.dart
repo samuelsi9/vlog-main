@@ -120,12 +120,12 @@ class _SupportQAPageState extends State<SupportQAPage> {
                     "You can return items within 30 days of purchase. Items must be unused and in original packaging. Please contact support for a return authorization.",
                   ),
                   _buildFAQItem(
-                    "How long does shipping take?",
-                    "Standard shipping typically takes 3-5 business days. Express shipping options are available at checkout for faster delivery.",
+                    "How long does delivery take?",
+                  "Delivery usually takes between 20 to 45 minutes depending on your location . You can track your order in real time after placing it.",
                   ),
                   _buildFAQItem(
-                    "Can I track my order?",
-                    "Yes! Once your order ships, you'll receive a tracking number via email. You can also view order status in your account.",
+                  "Can I track my order?",
+"Yes! Once your order is confirmed, you can follow it in real time in the app, including preparation, pickup, and delivery "
                   ),
                 ],
               ),
