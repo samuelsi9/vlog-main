@@ -3,7 +3,7 @@
 /// - 751–1500 ₺: 500 ₺
 /// - 1501–2500 ₺: 750 ₺
 /// - 2501+ ₺: 25%
-const double tierHighPercent = 0.25;
+const double tierHighPercent = 0.20;
 
 double calculateDeliveryFee(double subtotal) {
   if (subtotal <= 750) {
@@ -21,5 +21,5 @@ double calculateDeliveryFee(double subtotal) {
 /// For subtotal > 2500: returns 25 (fixed rate). Null for fixed-fee tiers.
 double? getDeliveryFeePercent(double subtotal) {
   if (subtotal <= 2500 || subtotal <= 0) return null;
-  return 25;
+  return 20;
 }

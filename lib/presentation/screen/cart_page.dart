@@ -1451,7 +1451,7 @@ class _DeliveryFeeInfoBox extends StatelessWidget {
               _FeeChip(label: '1–750 ₺', value: '₺355'),
               _FeeChip(label: '751–1500 ₺', value: '₺500'),
               _FeeChip(label: '1501–2500 ₺', value: '₺750'),
-              _FeeChip(label: 'From ₺2501 and above', value: '25% ★★★', isBest: true),
+              _FeeChip(label: 'From ₺2501 and above', value: '20% ★★★', isBest: true),
             ],
           ),
         ],
