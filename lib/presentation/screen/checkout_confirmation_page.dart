@@ -18,8 +18,15 @@ const Color primaryColorLight = Color(0xFFFC8181);
 class CheckoutConfirmationPage extends StatefulWidget {
   /// Address chosen in ChoiceAddress (used for delivery details).
   final DeliveryAddressModel? selectedAddress;
+  final DateTime? initialDate;
+  final String? initialTimeSlot;
 
-  const CheckoutConfirmationPage({super.key, this.selectedAddress});
+  const CheckoutConfirmationPage({
+    super.key,
+    this.selectedAddress,
+    this.initialDate,
+    this.initialTimeSlot,
+  });
 
   @override
   State<CheckoutConfirmationPage> createState() =>
@@ -42,6 +49,8 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
   @override
   void initState() {
     super.initState();
+    _selectedDeliveryDate = widget.initialDate;
+    _selectedDeliveryTime = widget.initialTimeSlot;
     _loadDeliveryDetails();
   }
 
@@ -658,7 +667,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                                       _buildFeeChip(context, '1–750 ₺', '₺355'),
                                       _buildFeeChip(context, '751–1500 ₺', '₺500'),
                                       _buildFeeChip(context, '1501–2500 ₺', '₺750'),
-                                      _buildFeeChip(context, 'From ₺2501 and above', '25% ★★★', isBest: true),
+                                      _buildFeeChip(context, 'From ₺2501 and above', '20% ★★★', isBest: true),
                                     ],
                                   ),
                                 ],
@@ -766,23 +775,30 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                             ),
                             const SizedBox(height: 16),
                             InkWell(
-                              onTap: () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => DeliverySchedulePage(
-                                      initialDate: _selectedDeliveryDate,
-                                      initialTimeSlot: _selectedDeliveryTime,
-                                    ),
-                                  ),
-                                );
-                                if (result != null) {
-                                  setState(() {
-                                    _selectedDeliveryDate = result['date'] as DateTime?;
-                                    _selectedDeliveryTime = result['timeSlot'] as String?;
-                                  });
-                                }
-                              },
+                              onTap: (_selectedDeliveryDate != null &&
+                                      _selectedDeliveryTime != null)
+                                  ? null
+                                  : () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              DeliverySchedulePage(
+                                            initialDate: _selectedDeliveryDate,
+                                            initialTimeSlot:
+                                                _selectedDeliveryTime,
+                                          ),
+                                        ),
+                                      );
+                                      if (result != null) {
+                                        setState(() {
+                                          _selectedDeliveryDate =
+                                              result['date'] as DateTime?;
+                                          _selectedDeliveryTime =
+                                              result['timeSlot'] as String?;
+                                        });
+                                      }
+                                    },
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(

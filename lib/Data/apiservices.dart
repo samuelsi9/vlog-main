@@ -1095,6 +1095,9 @@ class AuthService {
     // await GoogleSignIn.instance.initialize(
     //   serverClientId: '626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com',
     // );
+      await GoogleSignIn.instance.initialize(
+      serverClientId: '626509355552-ebiil0vadhqo1qbe3vr43nrli11i5ou0.apps.googleusercontent.com',
+    );
 
     final GoogleSignInAccount user =
         await GoogleSignIn.instance.authenticate();

@@ -1008,32 +1008,72 @@ class _RealhomeState extends State<Realhome> {
                                           height: 118,
                                         ),
                                       ),
-                                      // Wishlist button (uses product.id for API add/remove)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Consumer<WishlistService>(
-                                          builder: (context, wishlistService, child) {
-                                            final isInWishlist = wishlistService
-                                                .isInWishlist(product);
-                                            final isToggling = wishlistService.isToggling(product.id);
-                                            return InkWell(
-                                              onTap: () async {
-                                                try {
-                                                  await wishlistService.toggleWishlist(product);
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          isInWishlist
-                                                              ? "${product.name} removed from wishlist"
-                                                              : "${product.name} added to wishlist",
-                                                        ),
-                                                        duration: const Duration(seconds: 1),
-                                                        backgroundColor: primaryColor,
-                                                        behavior: SnackBarBehavior.floating,
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.circular(10),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // ── Product image + wishlist ──
+                                          Stack(
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                                                child: _buildProductImage(product.image, height: 118),
+                                              ),
+                                              Positioned(
+                                                top: 8,
+                                                right: 8,
+                                                child: Consumer<WishlistService>(
+                                                  builder: (context, wishlistService, child) {
+                                                    final isInWishlist = wishlistService.isInWishlist(product);
+                                                    final isToggling = wishlistService.isToggling(product.id);
+                                                    return InkWell(
+                                                      onTap: () async {
+                                                        await wishlistService.toggleWishlist(product);
+                                                        if (!context.mounted) return;
+                                                        // dev: wishlistService.error holds raw error if toggle failed
+                                                        if (wishlistService.error != null) {
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(wishlistService.error!),
+                                                              backgroundColor: Colors.red,
+                                                              behavior: SnackBarBehavior.floating,
+                                                              margin: const EdgeInsets.only(bottom: 1, left: 50, right: 50),
+                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                            ),
+                                                          );
+                                                          wishlistService.clearError();
+                                                        } else {
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                isInWishlist
+                                                                    ? '"${product.name}" removed from wishlist'
+                                                                    : '"${product.name}" saved to wishlist',
+                                                              ),
+                                                              duration: const Duration(seconds: 1),
+                                                              backgroundColor: primaryColor,
+                                                              behavior: SnackBarBehavior.floating,
+                                                              margin: const EdgeInsets.only(bottom: 1, left: 50, right: 50),
+                                                            //  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                            //  duration: const Duration(seconds: 2),
+                                                            //  dismissDirection: DismissDirection.horizontal,
+                                                            ),
+                                                          );
+                                                        }
+                                                      },
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(6),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white,
+                                                          shape: BoxShape.circle,
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors.black.withOpacity(0.1),
+                                                              blurRadius: 4,
+                                                              offset: const Offset(0, 2),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
                                                     );

@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services") // <-- Added for Firebase / Google Sign-In
+   
 }
 
 android {

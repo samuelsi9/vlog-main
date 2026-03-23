@@ -29,7 +29,7 @@ void main() async {
   OneSignal.initialize("9bda19f1-38fd-403e-8491-18edf4409b5c");
   // Use this method to prompt for push notifications.
   // We recommend removing this method after testing and instead use In-App Messages to prompt for notification permission.
-  OneSignal.Notifications.requestPermission(false);
+  //OneSignal.Notifications.requestPermission(false);
 
   // ✅ Listen for when the subscription ID becomes available
 OneSignal.User.pushSubscription.addObserver((state) {

@@ -9,6 +9,7 @@ import 'package:vlog/presentation/auth/complete_phone_screen.dart';
 import 'package:vlog/presentation/auth/login_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 // Design colors: red & white (match login)
 const Color _primaryRed = Color(0xFFE53E3E);
@@ -68,6 +69,10 @@ class _RegisterPageState extends State<RegisterPage>
       final userId = user?['id']?.toString();
       final phone = user?['phone'];
       final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+      // ✅ ADD THIS
+      Future.delayed(const Duration(seconds: 2), () {
+        OneSignal.Notifications.requestPermission(true);
+      });
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -98,6 +103,11 @@ class _RegisterPageState extends State<RegisterPage>
       final userId = user?['id']?.toString();
       final phone = user?['phone'];
       final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+
+   // ✅ ADD HERE ONE SIGNAL PERMISSION REQUEST
+      Future.delayed(const Duration(seconds: 2), () {
+        OneSignal.Notifications.requestPermission(true);
+      });
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -197,6 +207,11 @@ class _RegisterPageState extends State<RegisterPage>
         );
 
         if (result.isNotEmpty && result['user'] != null) {
+          
+          // ✅ ADD HERE ONE SIGNAL PERMISSION REQUEST
+          Future.delayed(const Duration(seconds: 2), () {
+            OneSignal.Notifications.requestPermission(true);
+          });
           if (mounted) {
             Navigator.pushReplacement(
               context,

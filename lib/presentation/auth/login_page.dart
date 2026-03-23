@@ -8,7 +8,7 @@ import 'package:vlog/presentation/auth/register_page.dart';
 import 'package:vlog/presentation/auth/forgot_password_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 // Design colors: red & white (DishDash / EcoThrive style)
 const Color _primaryRed = Color(0xFFE53E3E);
 const Color _primaryRedDark = Color(0xFFC62828);
@@ -103,6 +103,11 @@ class _LoginPageState extends State<LoginPage>
       if (data.isNotEmpty && data['user'] != null) {
         final user = data['user'] as Map<String, dynamic>;
         if (!mounted) return;
+
+        // ✅ ADD one signal permission request
+  Future.delayed(const Duration(seconds: 2), () {
+    OneSignal.Notifications.requestPermission(true);
+  });
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -149,10 +154,18 @@ class _LoginPageState extends State<LoginPage>
       final userId = user?['id']?.toString();
       final phone = user?['phone'];
       final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+
+
+      // ✅ ADD HERE ONE SIGNAL PERMISSION REQUEST
+      Future.delayed(const Duration(seconds: 2), () {
+        OneSignal.Notifications.requestPermission(true);
+      });
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => hasPhone
+          // ↑ just before this, ADD:
+
               ? MainScreen(token: userId, showWelcomeOverlay: true)
               : const CompletePhoneScreen(),
         ),
@@ -179,6 +192,12 @@ class _LoginPageState extends State<LoginPage>
       final userId = user?['id']?.toString();
       final phone = user?['phone'];
       final hasPhone = phone != null && phone.toString().trim().isNotEmpty;
+
+
+      // ✅ ADD HERE ONE SIGNAL PERMISSION REQUEST
+      Future.delayed(const Duration(seconds: 2), () {
+        OneSignal.Notifications.requestPermission(true);
+      });
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

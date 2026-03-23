@@ -7,6 +7,8 @@ import 'package:vlog/presentation/screen/search_page.dart';
 import 'package:vlog/presentation/screen/support_qa_page.dart';
 import 'package:vlog/Utils/delivery_tracking_service.dart';
 import 'package:vlog/Utils/cart_service.dart';
+import 'package:vlog/presentation/restaurants/market.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class MainScreen extends StatefulWidget {
   final String? token;
@@ -44,6 +46,12 @@ class _MainScreenState extends State<MainScreen> {
         listen: false,
       );
       cartService.initialize();
+
+      // ✅ ADD THIS — request notification permission after home loads
+    Future.delayed(const Duration(seconds: 2), () {
+      OneSignal.Notifications.requestPermission(true);
+    });
+
     });
   }
 
