@@ -180,7 +180,7 @@ class _AddressesState extends State<Addresses> {
                 controller: buildingNumberController,
                 label: 'building_name',
                 hint: 'e.g. Well wwwarir',
-                validator: (v) => _validateRequired(v, 'building_number'),
+                validator: (v) => _validateRequired(v, 'building_name'),
               ),
               const SizedBox(height: 24),
               // Use current location – like real delivery apps

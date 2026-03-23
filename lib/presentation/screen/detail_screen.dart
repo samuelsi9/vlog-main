@@ -12,7 +12,7 @@ import 'package:vlog/presentation/screen/cart_page.dart';
 
 class Detail extends StatefulWidget {
   final itemModel? ecom;
-  final int? productId;
+  final int? productId; // Product ID to fetch from API
 
   const Detail({super.key, this.ecom, this.productId})
       : assert(ecom != null || productId != null, 'Either ecom or productId must be provided');
@@ -28,12 +28,13 @@ class _DetailState extends State<Detail> {
   ProductDetailModel? _productDetail;
   bool _isLoading = true;
   bool _isAddingToCart = false;
-  String? _addingRelatedProductKey;
+  String? _addingRelatedProductKey; // for "You may also like" plus (itemModel has no id)
   String? _error;
   List<ProductModel> _similarProducts = [];
   bool _isLoadingSimilar = false;
   final AuthService _authService = AuthService();
 
+  // Beautiful red gradient colors (matching home page)
   static const Color primaryColor = Color(0xFFE53E3E);
   static const Color primaryColorLight = Color(0xFFFC8181);
   static const Color uberBlack = Color(0xFF000000);
@@ -50,10 +51,12 @@ class _DetailState extends State<Detail> {
   @override
   void initState() {
     super.initState();
+    // Fetch product details from API if productId is provided
     if (widget.productId != null) {
       _fetchProductDetail();
     } else {
       _isLoading = false;
+      // Record view for itemModel (no API product id)
       if (widget.ecom != null) {
         RecentlyViewedService.addViewed(0, widget.ecom!.categoryId);
         _fetchSimilarProducts(widget.ecom!.categoryId);
@@ -131,7 +134,7 @@ class _DetailState extends State<Detail> {
       _fetchSimilarProducts(productDetail.categoryId, excludeProductId: productDetail.id);
     } catch (e) {
       setState(() {
-        _error = 'Unable to load product. Please try again.';
+        _error = e.toString();
         _isLoading = false;
       });
       if (mounted) {
@@ -173,7 +176,9 @@ class _DetailState extends State<Detail> {
   }
 
   Widget _buildInfoChip(IconData icon, String label, dynamic iconColor) {
-    final color = iconColor == Colors.amber ? Colors.amber[700] : Colors.grey[600];
+    final color = iconColor == Colors.amber
+        ? Colors.amber[700]
+        : Colors.grey[600];
     return Column(
       children: [
         Icon(icon, size: 22, color: color ?? Colors.grey[600]),
@@ -183,12 +188,19 @@ class _DetailState extends State<Detail> {
     );
   }
 
+  // Get the current product (either from API or from widget.ecom)
   itemModel get _currentProduct {
-    if (_productDetail != null) return _productDetail!.toItemModel();
-    if (widget.ecom != null) return widget.ecom!;
+    if (_productDetail != null) {
+      return _productDetail!.toItemModel();
+    }
+    if (widget.ecom != null) {
+      return widget.ecom!;
+    }
+    // Fallback - should never reach here due to assert
     throw StateError('Neither productDetail nor ecom is available');
   }
 
+  // Helper method to build image widget (handles both network and asset images)
   Widget _buildImage(String imageUrl, {double? height, double? width}) {
     if (imageUrl.isEmpty) {
       return Container(height: height, width: width, color: Colors.grey[200], child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 30));
@@ -258,13 +270,16 @@ class _DetailState extends State<Detail> {
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
 
+    // Show loading state
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Colors.grey[50],
         appBar: AppBar(backgroundColor: Colors.white, elevation: 0,
           leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black), onPressed: () => Navigator.pop(context)),
         ),
-        body: Center(child: CircularProgressIndicator(color: primaryColor)),
+        body: Center(
+          child: CircularProgressIndicator(color: primaryColor),
+        ),
       );
     }
 
@@ -385,13 +400,20 @@ class _DetailState extends State<Detail> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Product Image Section – clean with rounded corners
             Container(
               height: size.height * 0.42,
               width: double.infinity,
               margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.08), blurRadius: 24, offset: const Offset(0, 8))],
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
@@ -405,6 +427,8 @@ class _DetailState extends State<Detail> {
                 ),
               ),
             ),
+
+            // Product Info Section – clean layout
             Container(
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               padding: const EdgeInsets.all(20),
@@ -415,6 +439,7 @@ class _DetailState extends State<Detail> {
                 children: [
                   Text(currentProduct.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A202C), letterSpacing: -0.5, height: 1.2)),
                   const SizedBox(height: 12),
+                  // Price & Discount row
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -461,6 +486,7 @@ class _DetailState extends State<Detail> {
               ),
             ),
             const SizedBox(height: 24),
+            // Similar Products Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -480,7 +506,13 @@ class _DetailState extends State<Detail> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, -4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 24,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: SafeArea(
           child: Column(
@@ -606,14 +638,18 @@ class _DetailState extends State<Detail> {
     );
   }
 
+  // Get similar products from itemC fallback when API returns empty
   List<itemModel> _getSimilarProductsFallback() {
     final currentProduct = _currentProduct;
     return itemC
-        .where((item) => item.categoryId == currentProduct.categoryId && item.name != currentProduct.name)
+        .where((item) =>
+            item.categoryId == currentProduct.categoryId &&
+            item.name != currentProduct.name)
         .take(10)
         .toList();
   }
 
+  // Build similar products section - uses API products by category, fallback to itemC
   Widget _buildSimilarProducts() {
     final hasApiProducts = _similarProducts.isNotEmpty;
     final fallbackItems = _getSimilarProductsFallback();
@@ -623,7 +659,9 @@ class _DetailState extends State<Detail> {
     if (_isLoadingSimilar && !useApi) {
       return const SizedBox(height: 220, child: Center(child: CircularProgressIndicator(color: primaryColor)));
     }
-    if (itemCount == 0) return const SizedBox.shrink();
+    if (itemCount == 0) {
+      return const SizedBox.shrink();
+    }
 
     return SizedBox(
       height: 220,
@@ -631,7 +669,9 @@ class _DetailState extends State<Detail> {
         scrollDirection: Axis.horizontal,
         itemCount: itemCount,
         itemBuilder: (context, index) {
-          if (useApi) return _buildSimilarProductCard(_similarProducts[index], index, itemCount);
+          if (useApi) {
+            return _buildSimilarProductCard(_similarProducts[index], index, itemCount);
+          }
           return _buildSimilarItemModelCard(fallbackItems[index], index, itemCount);
         },
       ),
@@ -640,11 +680,11 @@ class _DetailState extends State<Detail> {
 
   Widget _buildSimilarProductCard(ProductModel product, int index, int total) {
     return Consumer2<CartService, WishlistService>(
-      builder: (context, cartService, wishlistService, child) {
-        final itemForCart = _productToItemModel(product);
-        final isInCart = cartService.isInCart(itemForCart);
-        final isInWishlist = wishlistService.isInWishlist(product);
-        final isToggling = wishlistService.isToggling(product.id);
+            builder: (context, cartService, wishlistService, child) {
+              final itemForCart = _productToItemModel(product);
+              final isInCart = cartService.isInCart(itemForCart);
+              final isInWishlist = wishlistService.isInWishlist(product);
+              final isToggling = wishlistService.isToggling(product.id);
 
         return Container(
           width: 160,
@@ -725,12 +765,9 @@ class _DetailState extends State<Detail> {
                     ]),
                   ),
                 ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+              );
+            },
+          );
   }
 
   Widget _buildSimilarItemModelCard(itemModel product, int index, int total) {
