@@ -218,23 +218,42 @@ class _SearchPageState extends State<SearchPage> {
 
   // Determines which view to show based on search field text
   bool get _isSearchActive => _searchController.text.isNotEmpty;
-
+  
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
-
+    bool isArrowActive=true;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new,
-                    color: uberBlack, size: 20),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
+         leading: IconButton(
+  icon: const Icon(Icons.arrow_back_ios_new,
+      color: uberBlack, size: 20),
+  onPressed: () {
+    FocusScope.of(context).unfocus(); // cache le clavier
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  },
+), //canPop
+        //     ? IconButton(
+        //         icon: const Icon(Icons.arrow_back_ios_new,
+        //             color: uberBlack, size: 20),
+        //         onPressed: () => Navigator.pop(context), //{
+        //           // FocusScope.of(context).unfocus(); // ✅ cache le clavier
+        //             //Navigator.pop(context);
+        //         //},
+        //       )
+        //     : IconButton(
+        //         icon: const Icon(Icons.arrow_back_ios_new,
+        //             color: uberBlack, size: 20),
+        //         onPressed: () => Navigator.pop(context), //{
+        //           // FocusScope.of(context).unfocus(); // ✅ cache le clavier
+        //             //Navigator.pop(context);
+        //         //},
+        //       ) ,
         title: Container(
           height: 48,
           decoration: BoxDecoration(

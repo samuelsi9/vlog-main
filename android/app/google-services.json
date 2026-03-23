@@ -7,14 +7,22 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:626509355552:android:32110d0b3fa1b9e81afa45",
+        "mobilesdk_app_id": "1:626509355552:android:6c3f3d437e00ede01afa45",
         "android_client_info": {
-          "package_name": "com.example.vlog"
+          "package_name": "com.example.koliago"
         }
       },
       "oauth_client": [
         {
-          "client_id": "626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com",
+          "client_id": "626509355552-bc17nad8st3qq01q34o2tpujvems0ugo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.koliago",
+            "certificate_hash": "9fb49882a58a20f43635a0fff0962b41930e4be1"
+          }
+        },
+        {
+          "client_id": "626509355552-58s1sjvgklrhol6b0h3p66k96m06u2ro.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -27,14 +35,50 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "626509355552-6ind67045ui3ap5p0rjfjp9bcub09jm5.apps.googleusercontent.com",
+              "client_id": "626509355552-58s1sjvgklrhol6b0h3p66k96m06u2ro.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "626509355552-bmk5mda099te3il0c00h3g8vklv5ru31.apps.googleusercontent.com",
+              "client_id": "626509355552-2hgjdrdn9htc2c8snp9h100hcmrfbj5v.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.vlog"
+                "bundle_id": "com.example.koliago"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626509355552:android:32110d0b3fa1b9e81afa45",
+        "android_client_info": {
+          "package_name": "com.example.vlog"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "626509355552-58s1sjvgklrhol6b0h3p66k96m06u2ro.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDs_YoRl9XrsIEgaMIZU4bC_WwPZw2z4-w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "626509355552-58s1sjvgklrhol6b0h3p66k96m06u2ro.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "626509355552-2hgjdrdn9htc2c8snp9h100hcmrfbj5v.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.koliago"
               }
             }
           ]

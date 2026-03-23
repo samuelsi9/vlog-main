@@ -1006,7 +1006,11 @@ class _RealhomeState extends State<Realhome> {
                                                               backgroundColor: primaryColor,
                                                               behavior: SnackBarBehavior.floating,
                                                               margin: const EdgeInsets.only(bottom: 1, left: 50, right: 50),
-                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                            //  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                            //  duration: const Duration(seconds: 2),
+                                                            //  dismissDirection: DismissDirection.horizontal,
                                                             ),
                                                           );
                                                         }
