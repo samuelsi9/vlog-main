@@ -15,7 +15,8 @@ import 'package:vlog/presentation/screen/detail_screen.dart';
 import 'package:vlog/presentation/screen/cart_page.dart';
 import 'package:vlog/presentation/screen/search_page.dart';
 import 'package:flutter/services.dart';
-import 'package:vlog/main.dart';
+import 'package:vlog/presentation/auth/login_page.dart';
+import 'package:flutter/cupertino.dart';
 
 class _BannerSlide {
   final String image;
@@ -106,15 +107,15 @@ class _RealhomeState extends State<Realhome> {
   int _currentBannerIndex = 0;
 
   static const List<_BannerSlide> _bannerSlides = [
-    _BannerSlide(image: 'assets/home0.jpg', label: 'Special Offer', title: 'Up to 40% Off\nFresh Groceries'),
-    _BannerSlide(image: 'assets/home1.jpg', label: 'Fresh Deals', title: 'Up to 30% Off\nDaily Essentials'),
-    _BannerSlide(image: 'assets/home2.jpg', label: 'Autumn Fresh', title: 'Up to 35% Off\nOrganic Produce'),
-    _BannerSlide(image: 'assets/home3.jpg', label: 'Best Sellers', title: 'Up to 25% Off\nPopular Items'),
+    _BannerSlide(image: 'assets/home0.jpg', label: 'Special Offer', title: 'Enjoy 200₺ Discount\nOn Your First Purchase'),
+    _BannerSlide(image: 'assets/home1.jpg', label: 'Exclusive Offer', title: 'Fresh Groceries\nDelivered Fast'),
+    _BannerSlide(image: 'assets/home2.jpg', label: 'Daily Essentials', title: 'Everything You Need\nIn One Place'),
+    _BannerSlide(image: 'assets/home3.jpg', label: 'Weekend Special', title: 'Shop More Save \nTime'),
     _BannerSlide(image: 'assets/home4.jpg', label: 'Weekend Sale', title: 'Up to 50% Off\nSelect Products'),
-    _BannerSlide(image: 'assets/home5.jpg', label: 'New Arrivals', title: 'Up to 20% Off\nLatest Products'),
-    _BannerSlide(image: 'assets/home6.jpg', label: 'Hot Deals', title: 'Up to 45% Off\nFresh Groceries'),
-    _BannerSlide(image: 'assets/home7.jpg', label: 'Autumn Fresh Deals', title: 'Up to 40% Off\nFresh Groceries'),
-    _BannerSlide(image: 'assets/home8.jpg', label: 'Limited Time', title: 'Up to 40% Off\nFresh Groceries'),
+    _BannerSlide(image: 'assets/home5.jpg', label: 'Koliago', title: 'Make life with\n KoliaGo'),
+    _BannerSlide(image: 'assets/home6.jpg', label: 'Hot Deals', title: 'Making your shopping\nsimple and quick'),
+    _BannerSlide(image: 'assets/home7.jpg', label: 'Easy Ordering', title: 'Our Weekly Grocery \nin a Few Clicks'),
+    _BannerSlide(image: 'assets/home8.jpg', label: 'Limited Time', title: 'Order Now\nGet It Fast'),
   ];
 
   List<ProductModel> _products = [];
@@ -467,7 +468,7 @@ class _RealhomeState extends State<Realhome> {
                     height: 180,
                     width: 140,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       width: 140,
                       height: 180,
                       color: Colors.grey[300],
@@ -521,7 +522,7 @@ class _RealhomeState extends State<Realhome> {
             ),
           );
         },
-        errorBuilder: (_, __, ___) => Container(
+        errorBuilder: (_, _, _) => Container(
           height: height,
           width: width ?? double.infinity,
           color: Colors.grey[200],
@@ -534,7 +535,7 @@ class _RealhomeState extends State<Realhome> {
         height: height,
         width: width ?? double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
+        errorBuilder: (_, _, _) => Container(
           height: height,
           width: width ?? double.infinity,
           color: Colors.grey[200],
@@ -602,7 +603,7 @@ class _RealhomeState extends State<Realhome> {
                                           _userDisplayName,
                                           style: const TextStyle(
                                             fontSize: 14,
-                                            fontWeight: FontWeight.w600,
+                                            fontWeight: FontWeight.w700,
                                             color: Colors.white,
                                           ),
                                           overflow: TextOverflow.ellipsis,
@@ -1118,27 +1119,80 @@ class _RealhomeState extends State<Realhome> {
                                                                 }
                                                               } catch (e) {
                                                                 // dev error: e.toString() — addToCartByProductId(${product.id}) failed
-                                                                if (mounted) {
-                                                                  final raw = e.toString().toLowerCase();
-                                                                  final isAuth = raw.contains('authenticated') || raw.contains('authentication');
-                                                                  final isNetwork = raw.contains('connection') || raw.contains('timeout') || raw.contains('network');
-                                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                                    SnackBar(
-                                                                      content: Text(
-                                                                        isAuth
-                                                                            ? "Please log in to add items to your cart."
-                                                                            : isNetwork
-                                                                                ? "No internet connection. Please try again."
-                                                                                : "Couldn't add to cart. Please try again.",
-                                                                      ),
-                                                                      duration: const Duration(seconds: 2),
-                                                                      backgroundColor: isAuth ? Colors.orange : Colors.red,
-                                                                      behavior: SnackBarBehavior.floating,
-                                                                      margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
-                                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                                                    ),
-                                                                  );
-                                                                }
+                                                                //the old code 
+                                                                // if (mounted) {
+                                                                //   final raw = e.toString().toLowerCase();
+                                                                //   final isAuth = raw.contains('authenticated') || raw.contains('authentication');
+                                                                //   final isNetwork = raw.contains('connection') || raw.contains('timeout') || raw.contains('network');
+                                                                //   ScaffoldMessenger.of(context).showSnackBar(
+                                                                //     SnackBar(
+                                                                //       content: Text(
+                                                                //         isAuth
+                                                                //             ? "Please log in to add items to your cart."
+                                                                //             : isNetwork
+                                                                //                 ? "No internet connection. Please try again."
+                                                                //                 : "Couldn't add to cart. Please try again.",
+                                                                //       ),
+                                                                //       duration: const Duration(seconds: 2),
+                                                                //       backgroundColor: isAuth ? Colors.orange : Colors.red,
+                                                                //       behavior: SnackBarBehavior.floating,
+                                                                //       margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+                                                                //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                                                //     ),
+                                                                //   );
+                                                                // }
+
+                                                      if (mounted) {
+  final raw = e.toString().toLowerCase();
+  final isAuth = raw.contains('authenticated') || raw.contains('authentication');
+  final isNetwork = raw.contains('connection') || raw.contains('timeout') || raw.contains('network');
+
+  if (isAuth) {
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogContext) => CupertinoAlertDialog(
+      title: const Text("Login Required"),
+      content: const Text(
+        "Please log in to add items to your cart.",
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text("Cancel", style: TextStyle(color: Colors.red),),
+        ),
+        CupertinoDialogAction(
+          isDefaultAction: true, // ✅ makes it bold like Apple style
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+          },
+          child: const Text("Log In"),
+        ),
+      ],
+    ),
+  );
+} else {
+    // Network or other errors — snackbar is fine
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isNetwork
+              ? "No internet connection. Please try again."
+              : "Couldn't add to cart. Please try again.",
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
                                                               } finally {
                                                                 if (mounted) setState(() => _addingProductId = null);
                                                               }

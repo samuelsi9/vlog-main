@@ -3,14 +3,18 @@ class UserModel {
   final String name;
   final String email;
   final String image;
+  final String phone;
   final String role; // "user", "seller", "admin"
+
 
   UserModel({
     required this.id,
     required this.name,
     required this.email,
     required this.image,
+    required this.phone,
     required this.role,
+    
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -19,6 +23,7 @@ class UserModel {
       name: map['name']?.toString() ?? map['username']?.toString() ?? '',
       email: map['email']?.toString() ?? '',
       image: map['image']?.toString() ?? map['avatar']?.toString() ?? '',
+      phone: map['phone']?.toString() ?? map['avatar']?.toString() ?? '',
       role:
           (map['role'] ??
                   (map['roles'] is List && map['roles'].isNotEmpty
@@ -34,6 +39,7 @@ class UserModel {
       'name': name,
       'email': email,
       'image': image,
+      'phone':phone,
       'role': role,
     };
   }

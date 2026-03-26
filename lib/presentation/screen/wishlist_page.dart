@@ -55,8 +55,9 @@ void _showSnack(BuildContext context, String message, {
 
 String _friendlyError(Object e) {
   final raw = e.toString().toLowerCase();
-  if (raw.contains('network') || raw.contains('connection') || raw.contains('socket') || raw.contains('timeout') || raw.contains('statuscode: null'))
+  if (raw.contains('network') || raw.contains('connection') || raw.contains('socket') || raw.contains('timeout') || raw.contains('statuscode: null')) {
     return "No internet connection.\nPlease check your network and try again.";
+  }
   if (raw.contains('401') || raw.contains('unauthorized')) return "Your session has expired. Please log in again.";
   if (raw.contains('403') || raw.contains('forbidden'))    return "You don't have permission to do that.";
   if (raw.contains('404'))                                  return "We couldn't find what you were looking for.";
@@ -95,10 +96,10 @@ class _WishlistPageState extends State<WishlistPage> with SingleTickerProviderSt
     final trimmed = imageUrl.trim();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return Image.network(trimmed, height: height, width: width, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _imageFallback(height: height, width: width));
+        errorBuilder: (_, _, _) => _imageFallback(height: height, width: width));
     }
     return Image.asset(trimmed, height: height, width: width, fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _imageFallback(height: height, width: width));
+      errorBuilder: (_, _, _) => _imageFallback(height: height, width: width));
   }
 
   Widget _imageFallback({double? height, double? width}) => Container(
@@ -166,7 +167,7 @@ class _WishlistPageState extends State<WishlistPage> with SingleTickerProviderSt
       ),
       actions: [
         Consumer<WishlistService>(
-          builder: (_, ws, __) {
+          builder: (_, ws, _) {
             if (!ws.loading) return const SizedBox.shrink();
             return const Padding(
               padding: EdgeInsets.only(right: 16),

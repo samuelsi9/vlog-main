@@ -42,10 +42,13 @@ class AppRouter {
     if (!state.onboardingCompleted) {
       return OnboardingPage(onComplete: onOnboardingComplete);
     }
-    if (state.isAuthenticated) {
-      return MainScreen(token: null);
-    }
-    return const RegisterPage();
+    // old verdsion before login
+    // if (state.isAuthenticated) {
+    //   return MainScreen(token: null);
+    // }
+    // return const RegisterPage();
+
+    return MainScreen(token: null);
   }
 }
 

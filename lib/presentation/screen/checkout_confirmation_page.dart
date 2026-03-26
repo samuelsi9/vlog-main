@@ -83,7 +83,7 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
           _phone = addr.phone!.trim();
         }
       }
-      if (_phone.isEmpty) _phone = '+90 555 123 4567';
+      if (_phone.isEmpty) _phone = ' no phone number';
     });
   }
 
@@ -942,28 +942,29 @@ class _CheckoutConfirmationPageState extends State<CheckoutConfirmationPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _notesController,
-                              decoration: InputDecoration(
-                                hintText: 'Add any special instructions...',
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: primaryColor, width: 2),
-                                ),
-                              ),
-                              minLines: 3,
-                              maxLines: 4,
-                            ),
+                            // for optianal for sending 
+                            // TextFormField(
+                            //   controller: _notesController,
+                            //   decoration: InputDecoration(
+                            //     hintText: 'Add any special instructions...',
+                            //     filled: true,
+                            //     fillColor: Colors.grey[50],
+                            //     border: OutlineInputBorder(
+                            //       borderRadius: BorderRadius.circular(12),
+                            //       borderSide: BorderSide.none,
+                            //     ),
+                            //     enabledBorder: OutlineInputBorder(
+                            //       borderRadius: BorderRadius.circular(12),
+                            //       borderSide: BorderSide(color: Colors.grey[300]!),
+                            //     ),
+                            //     focusedBorder: OutlineInputBorder(
+                            //       borderRadius: BorderRadius.circular(12),
+                            //       borderSide: BorderSide(color: primaryColor, width: 2),
+                            //     ),
+                            //   ),
+                            //   minLines: 3,
+                            //   maxLines: 4,
+                            // ),
                           ],
                         ),
                       ),

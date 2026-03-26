@@ -46,10 +46,19 @@ class CartService extends ChangeNotifier {
     // Check authentication first
     final isAuth = await isAuthenticated();
     if (!isAuth) {
-      _error = 'You must be authenticated to view your cart';
-      _isLoading = false;
-      notifyListeners();
-      throw Exception('Authentication required');
+      //old version before login
+      // _error = 'You must be authenticated to view your cart';
+      // _isLoading = false;
+      // notifyListeners();
+      // throw Exception('Authentication required');
+
+      if (!isAuth) {
+        _error = null;        // no error message
+        _isLoading = false;
+    //_cartItems = [];      // empty cart for guest
+        notifyListeners();
+        return;               // ✅ just return, don't throw
+  }
     }
 
     _isLoading = true;

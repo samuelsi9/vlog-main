@@ -1169,6 +1169,8 @@ class AuthService {
       final data = <String, dynamic>{
         'token': identityToken,
         // 'authorization_code': ?authorizationCode,
+        'authorization_code': ?authorizationCode,
+
          if (name != null && name.isNotEmpty) 'name': name,
       };
       final response = await dio.post(url, data: data);
@@ -1179,9 +1181,7 @@ class AuthService {
             ? response.data as Map<String, dynamic>
             : {};
       }
-      return response.data is Map<String, dynamic>
-          ? response.data as Map<String, dynamic>
-          : {};
+      throw Exception('Unexpected Apple login response format');
     } on DioException catch (e) {
 
       if (e.response != null) {

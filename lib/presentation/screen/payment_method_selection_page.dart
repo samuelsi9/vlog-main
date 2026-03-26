@@ -347,7 +347,7 @@ class _PaymentMethodSelectionPageState
                           title: widget.selectedAddress.label,
                           subtitle: widget.selectedAddress.buildingNumber
                                   .isNotEmpty
-                              ? '${widget.selectedAddress.buildingNumber} ${widget.selectedAddress.street}'
+                              ? '${widget.selectedAddress.buildingNumber}'
                               : widget.selectedAddress.street,
                         ),
                         const SizedBox(height: 12),

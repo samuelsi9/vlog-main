@@ -6,6 +6,9 @@ import 'package:vlog/Utils/parse_utils.dart';
 import 'package:vlog/Utils/delivery_fee_utils.dart';
 import 'package:vlog/Utils/storage_service.dart';
 import 'package:vlog/presentation/addressess/choiceAddress.dart';
+import 'package:vlog/presentation/auth/complete_phone_screen.dart';
+import 'package:vlog/presentation/auth/login_page.dart';
+import 'package:flutter/cupertino.dart';
 
 // Color scheme
 const Color primaryColor = Color(0xFFE53E3E);
@@ -88,6 +91,29 @@ class _CartPageState extends State<CartPage> {
       });
     }
   }
+
+
+ Future<bool> _checkIfUserHasPhoneNumber() async {
+  try {
+    final user = await StorageService.getUser();
+    
+    print("=== PHONE CHECK ===");
+    print("Full user: $user");  // 👈 add this
+    
+    if (user == null) return false;
+
+    final phone = user['phone']?.toString().trim() ?? 
+                 user['phone_number']?.toString().trim() ?? 
+                 user['mobile']?.toString().trim();
+
+    print("Phone value: $phone");  // 👈 add this
+    
+    return phone != null && phone.length >= 8;
+  } catch (e) {
+    debugPrint('Error checking phone number: $e');
+    return false;
+  }
+}
 
   // Helper method to build image widget (handles both network and asset images)
   Widget _buildImage(String imageUrl, {double? height, double? width}) {
@@ -172,6 +198,8 @@ class _CartPageState extends State<CartPage> {
       );
     }
   }
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -275,12 +303,50 @@ class _CartPageState extends State<CartPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            "Go Back",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                          child: InkWell(
+                            onTap: (){
+                             
+                          showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogContext) => CupertinoAlertDialog(
+      title: const Text("Login Required"),
+      content: const Text(
+        "Please log in to add items to your cart.",
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text("Cancel", style: TextStyle(color: Colors.red),),
+        ),
+        CupertinoDialogAction(
+          isDefaultAction: true, // ✅ makes it bold like Apple style
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+          },
+          child: const Text("Log In"),
+        ),
+      ],
+    ),
+  );
+
+   
+
+
+
+
+                            },
+                            child: const Text(
+                              "Go Back",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
@@ -769,12 +835,34 @@ class _CartPageState extends State<CartPage> {
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const ChoiceAddress(fromCheckout: true),
-                                    ),
-                                  );
+                                onTap: () async{
+
+                                  // this is where i change 
+  final hasPhone = await _checkIfUserHasPhoneNumber();
+  if (!mounted) return;
+
+  if (hasPhone) {
+    // ✅ Has phone → skip CompletePhoneScreen, go straight to address
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ChoiceAddress(fromCheckout: true),
+      ),
+    );
+  } else {
+    // ✅ No phone → complete phone first, then it auto-goes to ChoiceAddress
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const CompletePhoneScreen(),
+      ),
+    );
+  }
+
+
+                                 // Navigator.of(context).push(
+                                 //   MaterialPageRoute(
+                                 //     builder: (_) => const CompletePhoneScreen() //ChoiceAddress(fromCheckout: true),
+                                //    ),
+                                //  );
                                 },
                                 borderRadius: BorderRadius.circular(16),
                                 child: const Center(
@@ -901,6 +989,27 @@ class _CartDetailPageState extends State<_CartDetailPage> {
       );
     }
   }
+
+  Future<bool> _checkIfUserHasPhoneNumber() async {
+    try {
+      final user = await StorageService.getUser();
+      if (user == null) return false;
+
+      final phone = user['phone']?.toString().trim() ??
+                   user['phone_number']?.toString().trim() ??
+                   user['mobile']?.toString().trim();
+
+      // Consider it valid if phone exists and has at least 8 digits
+      print("the phone number: $phone");
+      return phone != null && phone.isNotEmpty && phone.length >= 8;
+    } catch (e) {
+      debugPrint('Error checking phone number: $e');
+      return false;
+    }
+  }
+
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -1364,11 +1473,35 @@ class _CartDetailPageState extends State<_CartDetailPage> {
                               color: Colors.transparent,
                               child: InkWell(
                                 onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const ChoiceAddress(fromCheckout: true),
-                                    ),
-                                  );
+   
+
+          //                       final hasPhone = await _checkIfUserHasPhoneNumber();                  
+          // if (!mounted) return;
+
+          // if (hasPhone) {
+          //   // Has phone → go to address selection
+            
+          //   Navigator.of(context).push(
+          //     MaterialPageRoute(
+          //       builder: (_) => const ChoiceAddress(fromCheckout: true),
+          //     ),
+          //   );
+
+            
+          // } else {
+          //   // No phone → complete phone first
+          //   print("phone number:$hasPhone");
+          //   Navigator.of(context).push(
+          //     MaterialPageRoute(
+          //       builder: (_) => const CompletePhoneScreen(),
+          //     ),
+          //   );
+          // }
+                                  //Navigator.of(context).push(
+                                  //  MaterialPageRoute(
+                                  //    builder: (_) => const ChoiceAddress(fromCheckout: true),
+                                  //  ),
+                                 // );
                                 },
                                 borderRadius: BorderRadius.circular(16),
                                 child: const Center(

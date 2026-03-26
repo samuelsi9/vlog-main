@@ -43,7 +43,7 @@ class _DetailState extends State<Detail> {
 
   // Returns true when the current product is sold by kg
   bool get _isKgProduct {
-    final unit = _productDetail?.unitType?.toLowerCase().trim() ?? '';
+    final unit = _productDetail?.unitType.toLowerCase().trim() ?? '';
     return unit == 'kg';
   }
 
@@ -218,7 +218,7 @@ class _DetailState extends State<Detail> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _kgPresets.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final preset = _kgPresets[i];
           final isSelected = quantity == preset;
@@ -710,8 +710,10 @@ class _DetailState extends State<Detail> {
                               await cartService.addToCartByProductId(product.id);
                               if (mounted) _showSnackBar("${product.name} added to cart", primaryColor, icon: Icons.check_circle_outline);
                             } catch (e) {
-                              if (mounted) _showSnackBar(_getCartErrorMessage(e.toString()), _getErrorColor(e.toString()),
+                              if (mounted) {
+                                _showSnackBar(_getCartErrorMessage(e.toString()), _getErrorColor(e.toString()),
                                 icon: e.toString().contains('authenticated') ? Icons.lock_outline : Icons.error_outline);
+                              }
                             } finally {
                               if (mounted) setState(() => _addingRelatedProductKey = null);
                             }
@@ -782,8 +784,10 @@ class _DetailState extends State<Detail> {
                             await cartService.addToCart(product);
                             if (mounted) _showSnackBar("${product.name} added to cart", primaryColor, icon: Icons.check_circle_outline);
                           } catch (e) {
-                            if (mounted) _showSnackBar(_getCartErrorMessage(e.toString()), _getErrorColor(e.toString()),
+                            if (mounted) {
+                              _showSnackBar(_getCartErrorMessage(e.toString()), _getErrorColor(e.toString()),
                               icon: e.toString().contains('authenticated') ? Icons.lock_outline : Icons.error_outline);
+                            }
                           } finally {
                             if (mounted) setState(() => _addingRelatedProductKey = null);
                           }
